@@ -1,47 +1,55 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+require('dotenv').config();
+const { Client, GatewayIntentBits, SlashCommandBuilder, Routes, REST, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events } = require('discord.js');
 
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = 'TON_CLIENT_ID'; // ID de l'application du nouveau bot
+const GUILD_ID = 'TON_ID_SERVEUR'; // ID de ton serveur Discord
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+  intents: [GatewayIntentBits.Guilds]
 });
-
-// Remplace par l’ID de ton salon média
-const MEDIA_CHANNEL_ID = '';
 
 client.once('ready', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 });
 
-client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
+// Enregistrer la commande /forcematchbutton
+const commands = [
+  new SlashCommandBuilder()
+    .setName('forcematchbutton')
+    .setDescription("Affiche un bouton pour forcer le lancement")
+].map(cmd => cmd.toJSON());
 
-  console.log(`[LOG] Message reçu dans salon ${message.channel.id} : "${message.content}"`);
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
+  .then(() => console.log('✅ Commande slash enregistrée'))
+  .catch(console.error);
 
-  if (message.channel.id !== MEDIA_CHANNEL_ID) {
-    console.log(`[IGNORÉ] Mauvais salon`);
-    return;
-  }
+// Quand quelqu'un tape /forcematchbutton
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName === 'forcematchbutton') {
+    const button = new ButtonBuilder()
+      .setCustomId('force_start')
+      .setLabel('📢 Forcer le lancement')
+      .setStyle(ButtonStyle.Danger);
 
-  const hasLink = /https?:\/\//.test(message.content);
-  const hasAttachment = message.attachments.size > 0;
-  const hasEmbed = message.embeds.length > 0;
+    const row = new ActionRowBuilder().addComponents(button);
 
-  console.log(`[DEBUG] Lien: ${hasLink}, Pièce jointe: ${hasAttachment}, Embed: ${hasEmbed}`);
-
-  if (!hasLink && !hasAttachment && !hasEmbed) {
-    try {
-      await message.delete();
-      console.log(`❌ Message supprimé`);
-    } catch (err) {
-      console.error(`❌ Erreur suppression :`, err);
-    }
+    await interaction.reply({
+      content: 'Clique ici pour forcer le lancement du match :',
+      components: [row],
+    });
   }
 });
 
-client.login(process.env.TOKEN);
+// Quand quelqu’un clique sur le bouton
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (interaction.customId === 'force_start') {
+    await interaction.channel.send('/forcestart');
+    await interaction.reply({ content: '✅ Match lancé avec /forcestart', ephemeral: true });
+  }
+});
 
-
+client.login(TOKEN);
