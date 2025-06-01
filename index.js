@@ -2,8 +2,8 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, SlashCommandBuilder, Routes, REST, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
-const CLIENT_ID = 'TON_CLIENT_ID'; // ID de l'application du nouveau bot
-const GUILD_ID = 'TON_ID_SERVEUR'; // ID de ton serveur Discord
+const CLIENT_ID = '1378861465003495445'; // ID de l'application du nouveau bot
+const GUILD_ID = '1370086363034161162'; // ID de ton serveur Discord
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
