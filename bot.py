@@ -8,23 +8,22 @@ from datetime import timedelta
 intents = discord.Intents.default()
 intents.members = True
 
+
+
+    GUILD_ID = 1370086363034161162  # Remplace avec ton vrai ID de serveur
+
 class MyClient(discord.Client):
     def __init__(self):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
 
-    GUILD_ID = 1370086363034161162  # Remplace avec ton vrai ID de serveur
-
-async def setup_hook(self):
-    guild = discord.Object(id=GUILD_ID)
-
-    try:
+    async def setup_hook(self):
+        guild = discord.Object(id=TON_ID_SERVEUR)
         print("🧹 Suppression commandes slash locales...")
         self.tree.clear_commands(guild=guild)
         await self.tree.sync(guild=guild)
-        print(f"✅ Slash sync locale réussie sur {GUILD_ID}")
-    except Exception as e:
-        print(f"❌ Erreur lors du sync locale : {e}")
+        print(f"✅ Slash sync locale réussie sur {guild.id}")
+
 
 
 client = MyClient()
