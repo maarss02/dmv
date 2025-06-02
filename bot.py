@@ -54,4 +54,4 @@ async def roulette(interaction: discord.Interaction):
         except:
             pass
 
-client.run(os.getenv("DISCORD_TOKEN"))
+client.run(os.getenv("TOKEN"))
