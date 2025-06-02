@@ -1,46 +1,57 @@
 import discord
-from discord.ext import commands
-import random
+from discord import app_commands
+from discord.ext import tasks
 import asyncio
+import random
 import os
 
 intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True  # important pour gérer rôles et timeouts
+intents.message_content = False  # pas besoin pour slash
+intents.members = True  # obligatoire pour add_roles / timeout
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+class MyClient(discord.Client):
+    def __init__(self):
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
 
-@bot.event
+    async def setup_hook(self):
+        await self.tree.sync()
+        print("✅ Slash commands synchronisées.")
+
+client = MyClient()
+
+@client.event
 async def on_ready():
-    print(f"🤖 Connecté en tant que {bot.user}")
+    print(f"🤖 Connecté en tant que {client.user}")
 
-@bot.command()
-async def roulette(ctx):
-    author = ctx.author
-    guild = ctx.guild
+@client.tree.command(name="roulette", description="Joue à la roulette russe : mute ou VIP ?")
+async def roulette(interaction: discord.Interaction):
+    user = interaction.user
+    guild = interaction.guild
+
+    await interaction.response.defer()  # pour éviter le timeout (pensée aux bots Railway)
 
     if random.randint(1, 6) == 1:
         try:
-            await author.timeout(discord.utils.utcnow() + discord.timedelta(minutes=10))
-            await ctx.send(f"💥 {author.mention} a perdu... muet 10 minutes.")
+            await user.timeout(discord.utils.utcnow() + discord.timedelta(minutes=10))
+            await interaction.followup.send(f"💥 {user.mention} a perdu ! Silence pendant 10 minutes.")
         except Exception as e:
-            await ctx.send("⚠️ Impossible de mute. Vérifie les permissions.")
-            print(f"Erreur mute : {e}")
+            await interaction.followup.send("⚠️ Je ne peux pas mute ce membre. Permissions manquantes.")
+            print(f"[Erreur timeout] {e}")
     else:
         role = discord.utils.get(guild.roles, name="VIP")
         if not role:
-            await ctx.send("⚠️ Le rôle `VIP` n'existe pas.")
+            await interaction.followup.send("⚠️ Le rôle `VIP` n'existe pas dans ce serveur.")
             return
 
-        await author.add_roles(role)
-        await ctx.send(f"😎 {author.mention} a survécu ! VIP pendant 10 minutes 👑")
+        await user.add_roles(role)
+        await interaction.followup.send(f"😎 {user.mention} a survécu ! VIP pendant 10 minutes 👑")
 
         await asyncio.sleep(600)
-        await author.remove_roles(role)
+        await user.remove_roles(role)
         try:
-            await author.send("⏳ Ton rôle VIP a expiré.")
+            await user.send("⏳ Ton rôle VIP a expiré.")
         except:
             pass
 
-# Démarre le bot avec le token depuis les variables Railway
-bot.run(os.getenv("TOKEN"))
+client.run(os.getenv("DISCORD_TOKEN"))
