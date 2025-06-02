@@ -13,11 +13,16 @@ class MyClient(discord.Client):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
 
-    async def setup_hook(self):
-        print("🔧 Sync globale forcée")
-        self.tree.clear_commands(guild=None)  # ✅ Fix ici
-        await self.tree.sync()
-        print("✅ Slash commands synchronisées globalement")
+    GUILD_ID = 1370086363034161162  # Remplace avec ton vrai ID de serveur
+
+async def setup_hook(self):
+    print("🔧 Sync locale forcée")
+    guild = discord.Object(id=GUILD_ID)
+
+    self.tree.clear_commands(guild=guild)
+    await self.tree.sync(guild=guild)
+    print(f"✅ Slash sync locale sur {GUILD_ID}")
+
 
 client = MyClient()
 
