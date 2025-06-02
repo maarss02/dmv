@@ -15,8 +15,8 @@ class MyClient(discord.Client):
 
     async def setup_hook(self):
         print("🔧 Sync globale forcée")
-        self.tree.clear_commands()
-        await self.tree.sync()  # ← global, visible dans tous les serveurs
+        self.tree.clear_commands(guild=None)  # ✅ Fix ici
+        await self.tree.sync()
         print("✅ Slash commands synchronisées globalement")
 
 client = MyClient()
@@ -59,5 +59,6 @@ async def roulette(interaction: discord.Interaction):
         print(f"[Erreur roulette] {e}")
 
 client.run(os.getenv("TOKEN"))
+
 
 
