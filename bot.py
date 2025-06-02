@@ -5,12 +5,11 @@ import random
 import asyncio
 from datetime import timedelta
 
+# ✅ Mets ton ID serveur ici (clic droit sur le nom du serveur > copier l'identifiant)
+GUILD_ID = 1370086363034161162
+
 intents = discord.Intents.default()
 intents.members = True
-
-
-
-    GUILD_ID = 1370086363034161162  # Remplace avec ton vrai ID de serveur
 
 class MyClient(discord.Client):
     def __init__(self):
@@ -18,13 +17,11 @@ class MyClient(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
-        guild = discord.Object(id=TON_ID_SERVEUR)
+        guild = discord.Object(id=GUILD_ID)
         print("🧹 Suppression commandes slash locales...")
         self.tree.clear_commands(guild=guild)
         await self.tree.sync(guild=guild)
-        print(f"✅ Slash sync locale réussie sur {guild.id}")
-
-
+        print(f"✅ Slash sync locale réussie sur {GUILD_ID}")
 
 client = MyClient()
 
@@ -32,7 +29,7 @@ client = MyClient()
 async def on_ready():
     print(f"🤖 Connecté en tant que {client.user}")
 
-@client.tree.command(name="ping", description="Test si le bot répond bien")
+@client.tree.command(name="ping", description="Test si le bot répond")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("🏓 Pong !")
 
