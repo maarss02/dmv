@@ -6,7 +6,7 @@ import asyncio
 from datetime import timedelta  # ✅ corrigé ici
 
 # Remplace avec l'ID de ton serveur Discord
-GUILD_ID = 123456789012345678  # ← mets ton vrai ID ici
+GUILD_ID = 1370086363034161162  # ← mets ton vrai ID ici
 
 intents = discord.Intents.default()
 intents.members = True  # pour add_roles / timeout
