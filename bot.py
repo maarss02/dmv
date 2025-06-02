@@ -3,12 +3,13 @@ from discord import app_commands
 import os
 import random
 import asyncio
+from datetime import timedelta  # ✅ corrigé ici
 
-# Remplace par l'ID de ton serveur (clic droit sur le nom du serveur > Copier l'identifiant)
-GUILD_ID = 1370086363034161162
+# Remplace avec l'ID de ton serveur Discord
+GUILD_ID = 123456789012345678  # ← mets ton vrai ID ici
 
 intents = discord.Intents.default()
-intents.members = True
+intents.members = True  # pour add_roles / timeout
 
 class MyClient(discord.Client):
     def __init__(self):
@@ -17,9 +18,19 @@ class MyClient(discord.Client):
 
     async def setup_hook(self):
         guild = discord.Object(id=GUILD_ID)
+
+        # 🧼 Nettoyage des commandes globales (cache slash Discord)
+        try:
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
+            print("🧹 Commandes globales vidées")
+        except Exception as e:
+            print(f"[Erreur purge globale] {e}")
+
+        # ✅ Sync ciblée sur ton serveur
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
-        print(f"✅ Slash commands synchronisées avec le serveur {GUILD_ID}")
+        print(f"✅ Slash command sync sur {GUILD_ID}")
 
 client = MyClient()
 
@@ -30,26 +41,25 @@ async def on_ready():
 @client.tree.command(name="roulette", description="Joue à la roulette russe : mute ou VIP ?")
 async def roulette(interaction: discord.Interaction):
     await interaction.response.defer()
-
     user = interaction.user
     guild = interaction.guild
 
     try:
         if random.randint(1, 6) == 1:
-            # Mute 10 minutes
-            await user.timeout(discord.utils.utcnow() + discord.timedelta(minutes=10))
-            await interaction.followup.send(f"💥 {user.mention} a perdu ! Silence pendant 10 minutes.")
+            try:
+                await user.timeout(discord.utils.utcnow() + timedelta(minutes=10))
+                await interaction.followup.send(f"💥 {user.mention} a perdu ! Silence 10 minutes.")
+            except Exception as e:
+                await interaction.followup.send("❌ Impossible de mute. Vérifie les permissions.")
+                print(f"[Erreur timeout] {e}")
         else:
-            # Rôle VIP
             role = discord.utils.get(guild.roles, name="VIP")
             if not role:
-                # Créer le rôle automatiquement s'il n'existe pas
                 role = await guild.create_role(name="VIP")
-                print("🔧 Rôle VIP créé automatiquement.")
+                print("🔧 Rôle VIP créé.")
 
             await user.add_roles(role)
-            await interaction.followup.send(f"😎 {user.mention} a survécu ! VIP pendant 10 minutes 👑")
-
+            await interaction.followup.send(f"😎 {user.mention} a survécu ! VIP 10 minutes 👑")
             await asyncio.sleep(600)
             await user.remove_roles(role)
             try:
@@ -61,6 +71,6 @@ async def roulette(interaction: discord.Interaction):
         await interaction.followup.send("❌ Une erreur est survenue.")
         print(f"[Erreur roulette] {e}")
 
-# Token depuis Railway
+# 🔐 Token depuis Railway variable d'environnement
 client.run(os.getenv("TOKEN"))
 
