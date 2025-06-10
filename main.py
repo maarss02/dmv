@@ -3,8 +3,8 @@ import re
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
- 
-# Charger les variables d'environnement depuis .env
+
+# Charger les variables d'environnement depuis .env (inutile sur Railway, mais ok si local)
 load_dotenv()
 
 intents = discord.Intents.default()
@@ -34,21 +34,21 @@ async def on_message(message):
     has_embed = len(message.embeds) > 0
 
     if not (has_link or has_attachment or has_embed):
-    try:
-        await message.delete()
-        print(f"❌ Message supprimé : {message.content}")
-
-        # ✅ Envoie un message privé à l’auteur
         try:
-            await message.author.send(
-                "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n"
-                "👉 Si ça ne se lance pas automatiquement, tape la commande `/forcestart`."
-            )
-        except Exception as dm_error:
-            print(f"⚠️ Impossible d'envoyer un DM à {message.author}: {dm_error}")
+            await message.delete()
+            print(f"❌ Message supprimé : {message.content}")
 
-    except Exception as e:
-        print(f"Erreur lors de la suppression : {e}")
+            # ✅ Envoie un message privé à l’auteur
+            try:
+                await message.author.send(
+                    "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n"
+                    "👉 Si ça ne se lance pas automatiquement, tape la commande `/forcestart`."
+                )
+            except Exception as dm_error:
+                print(f"⚠️ Impossible d'envoyer un DM à {message.author}: {dm_error}")
+
+        except Exception as e:
+            print(f"Erreur lors de la suppression : {e}")
 
     await bot.process_commands(message)
 
@@ -57,4 +57,5 @@ TOKEN = os.getenv("TOKEN")
 if TOKEN:
     bot.run(TOKEN)
 else:
-    print("❌ Token introuvable. Assure-toi qu'il est bien dans le fichier .env.")
+    print("❌ Token introuvable. Assure-toi qu'il est bien dans le fichier .env ou dans Railway.")
+
