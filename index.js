@@ -10,7 +10,7 @@ const client = new Client({
 });
 
 // Remplace par l’ID de ton salon média
-const MEDIA_CHANNEL_ID = '1346899064687427736';
+const MEDIA_CHANNEL_ID = '';
 
 client.once('ready', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
