@@ -3,7 +3,7 @@ import re
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-
+ 
 # Charger les variables d'environnement depuis .env
 load_dotenv()
 
