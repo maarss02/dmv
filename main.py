@@ -14,7 +14,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ID du salon média à surveiller — à modifier avec l'ID réel
-MEDIA_CHANNEL_ID = '1371204189908369550','1370165104943042671';# Remplace ceci par le bon ID
+MEDIA_CHANNEL_ID = 1371204189908369550,1370165104943042671;# Remplace ceci par le bon ID
 
 @bot.event
 async def on_ready():
