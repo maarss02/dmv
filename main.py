@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement (inutile sur Railway, mais fonctionne localement)
+# Charger les variables d'environnement
 load_dotenv()
 
 intents = discord.Intents.default()
@@ -18,8 +18,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 MEDIA_CHANNEL_IDS = [1371204189908369550, 1370165104943042671]
 
 # 🔔 ID du salon à notifier et rôle à ping
-NOTIF_CHANNEL_ID = 137888888888888888  # ⬅️ À remplacer par ton vrai salon de notif
-NOTIF_ROLE_ID = 137899999999999999     # ⬅️ À remplacer par l’ID du rôle @notification
+NOTIF_CHANNEL_ID = 137888888888888888  # ← À remplacer par ton salon notif
+NOTIF_ROLE_ID = 137899999999999999     # ← À remplacer par l’ID du rôle @notification
 
 # ⏱️ Intervalle entre mentions (en secondes)
 notification_interval = 60 * 60  # 1h
@@ -36,7 +36,9 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # 🎯 Filtrage des salons média (suppression si pas lien/media)
+    print(f"[DEBUG] Message reçu dans salon {message.channel.id} : {message.content}")
+
+    # ✅ Suppression dans les salons médias
     if message.channel.id in MEDIA_CHANNEL_IDS:
         has_link = re.search(r'https?://', message.content)
         has_attachment = len(message.attachments) > 0
@@ -60,8 +62,8 @@ async def on_message(message):
             except Exception as e:
                 print(f"Erreur lors de la suppression : {e}")
 
-    # 🔔 Notification dans un salon spécifique (1 fois par heure)
-    elif message.channel.id == NOTIF_CHANNEL_ID:
+    # ✅ Notification dans le salon spécifique (toutes les 1h max)
+    if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
             try:
@@ -71,7 +73,7 @@ async def on_message(message):
             except Exception as notif_error:
                 print(f"❌ Erreur lors de l'envoi de la notification : {notif_error}")
         else:
-            print("⏱️ Notification ignorée (moins d'1h depuis la dernière).")
+            print("⏱️ Notification ignorée (déjà envoyée il y a moins d'1h).")
 
     await bot.process_commands(message)
 
@@ -81,5 +83,3 @@ if TOKEN:
     bot.run(TOKEN)
 else:
     print("❌ Token introuvable. Assure-toi qu'il est bien dans Railway (Variables).")
-
-
