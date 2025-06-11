@@ -18,8 +18,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 MEDIA_CHANNEL_IDS = [1371204189908369550, 1370165104943042671]
 
 # 🔔 ID du salon à notifier et rôle à ping
-NOTIF_CHANNEL_ID = 137888888888888888  # ← À remplacer
-NOTIF_ROLE_ID = 137899999999999999     # ← À remplacer
+NOTIF_CHANNEL_ID = 1344287288946982936  # ← À remplacer
+NOTIF_ROLE_ID = 1344287286527004770     # ← À remplacer
 
 # ⏱️ Intervalle entre mentions (en secondes)
 notification_interval = 60 * 60  # 1h
