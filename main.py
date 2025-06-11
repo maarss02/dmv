@@ -18,8 +18,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 MEDIA_CHANNEL_IDS = [1371204189908369550, 1370165104943042671]
 
 # 🔔 ID du salon à notifier et rôle à ping
-NOTIF_CHANNEL_ID = 1344287288946982936  # ← À remplacer par ton salon notif
-NOTIF_ROLE_ID = 1344287286527004770     # ← À remplacer par l’ID du rôle @notification
+NOTIF_CHANNEL_ID = 137888888888888888  # ← À remplacer
+NOTIF_ROLE_ID = 137899999999999999     # ← À remplacer
 
 # ⏱️ Intervalle entre mentions (en secondes)
 notification_interval = 60 * 60  # 1h
@@ -36,7 +36,9 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    print(f"[DEBUG] Message reçu dans salon {message.channel.id} : {message.content}")
+    # 🔍 Debug limité aux salons utiles
+    if message.channel.id in MEDIA_CHANNEL_IDS or message.channel.id == NOTIF_CHANNEL_ID:
+        print(f"[DEBUG] Message reçu dans salon {message.channel.id} : {message.content}")
 
     # ✅ Suppression dans les salons médias
     if message.channel.id in MEDIA_CHANNEL_IDS:
@@ -62,7 +64,7 @@ async def on_message(message):
             except Exception as e:
                 print(f"Erreur lors de la suppression : {e}")
 
-    # ✅ Notification dans le salon spécifique (toutes les 1h max)
+    # ✅ Notification dans un salon spécifique (toutes les 1h max)
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
@@ -73,7 +75,7 @@ async def on_message(message):
             except Exception as notif_error:
                 print(f"❌ Erreur lors de l'envoi de la notification : {notif_error}")
         else:
-            print("⏱️ Notification ignorée (déjà envoyée il y a moins d'1h).")
+            print("⏱️ Notification ignorée (moins d'1h depuis la dernière).")
 
     await bot.process_commands(message)
 
