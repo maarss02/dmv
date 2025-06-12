@@ -4,10 +4,10 @@ import time
 import asyncio
 import discord
 from discord.ext import commands
-from discord import ui, app_commands, Interaction, PermissionOverwrite, ButtonStyle, Embed, TextStyle
+from discord import ui, Interaction, PermissionOverwrite
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement
+# === CHARGEMENT ENVIRONNEMENT ===
 load_dotenv()
 
 intents = discord.Intents.default()
@@ -19,16 +19,17 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ===== CONFIGURATION =====
+# === CONFIGURATION ===
 MEDIA_CHANNEL_IDS = [1371204189908369550, 1370165104943042671]
 NOTIF_CHANNEL_ID = 1344287288946982936
 NOTIF_ROLE_ID = 1344287286527004770
 CREATOR_VOCAL_ID = 1382766373825937429
 VOCAL_CATEGORY_ID = 1382767784064323755
+VOCAL_COMMAND_CHANNEL_ID = 1382771825775476746
+
 ROLE_MEMBRES = 1344287286585458749
 ROLE_SCRIMS = 1378428377412931644
 ROLE_NSFW = 1344287286527004772
-VOCAL_COMMAND_CHANNEL_ID = 1382771825775476746  # ⬅️ salon où !vocal est autorisé
 
 ROLE_CHOICES = {
     "Membres": ROLE_MEMBRES,
@@ -39,62 +40,7 @@ ROLE_CHOICES = {
 notification_interval = 60 * 60  # 1h
 last_notification_time = 0
 
-@bot.event
-async def on_ready():
-    print(f"✅ Connecté en tant que {bot.user}")
-    try:
-        synced = await bot.tree.sync()
-        print(f"🌐 Slash commands synchronisées : {len(synced)}")
-    except Exception as e:
-        print(f"❌ Erreur de synchronisation des slash commands : {e}")
-
-@bot.event
-async def on_message(message):
-    global last_notification_time
-
-    if message.author.bot:
-        return
-
-    if message.channel.id in MEDIA_CHANNEL_IDS or message.channel.id == NOTIF_CHANNEL_ID:
-        print(f"[DEBUG] Message reçu dans salon {message.channel.id} : {message.content}")
-
-    if message.channel.id in MEDIA_CHANNEL_IDS:
-        has_link = re.search(r'https?://', message.content)
-        has_attachment = len(message.attachments) > 0
-        has_embed = len(message.embeds) > 0
-
-        if not (has_link or has_attachment or has_embed):
-            try:
-                await message.delete()
-                print(f"❌ Message supprimé dans salon {message.channel.name} : {message.content}")
-                try:
-                    await message.author.send(
-                        "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n\n"
-                        "💬 Tu veux discuter ? Tu as ce salon : <#1378524605165207562>\n"
-                        "🔎 Tu recherches des personnes ? C’est par ici : <#1378397438204968981>\n\n"
-                        "👉 Si ça ne se lance pas automatiquement, tape la commande `/forcestart`."
-                    )
-                except Exception as dm_error:
-                    print(f"⚠️ Impossible d'envoyer un DM à {message.author}: {dm_error}")
-            except Exception as e:
-                print(f"Erreur lors de la suppression : {e}")
-
-    if message.channel.id == NOTIF_CHANNEL_ID:
-        now = time.time()
-        if now - last_notification_time >= notification_interval:
-            try:
-                await message.channel.send(f"<@&{NOTIF_ROLE_ID}>")
-                last_notification_time = now
-                print("🔔 Mention @notification envoyée.")
-            except Exception as notif_error:
-                print(f"❌ Erreur notification : {notif_error}")
-        else:
-            print("⏱️ Notification ignorée (moins d'1h depuis la dernière).")
-
-    await bot.process_commands(message)
-
-# === FORMULAIRE VOCAL (MODAL) ===
-
+# === MODAL DE CRÉATION ===
 class VocalModal(ui.Modal, title="Création de salon vocal"):
     nom = ui.TextInput(label="Nom du salon", placeholder="ex: Chill Zone", max_length=32)
     slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="ex: 5", max_length=2)
@@ -156,50 +102,81 @@ class VocalModal(ui.Modal, title="Création de salon vocal"):
         except Exception as e:
             await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
 
-# === SLASH COMMAND ===
-@bot.tree.command(name="vocal", description="Créer un salon vocal avec un formulaire pop-up")
-async def vocal_slash(interaction: Interaction):
-    if interaction.channel.id != VOCAL_COMMAND_CHANNEL_ID:
-        await interaction.response.send_message("❌ Utilise cette commande dans <#1382771825775476746>.", ephemeral=True)
-        return
-    await interaction.response.send_modal(VocalModal())
+# === BOUTON UI POUR LANCER LE FORMULAIRE ===
+class CreateVocalView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
 
-# === TEXTE !VOCAL ===
-@bot.command(name="vocal")
-async def vocal_text(ctx):
-    if ctx.channel.id != VOCAL_COMMAND_CHANNEL_ID:
-        await ctx.send("❌ Cette commande ne peut être utilisée que dans <#1382771825775476746>.", delete_after=5)
-        return
+    @discord.ui.button(label="🎧 Créer un vocal", style=discord.ButtonStyle.green, custom_id="create_vocal_button")
+    async def create_vocal_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(VocalModal())
 
+# === LANCEMENT ET GESTION DU BOUTON PERMANENT ===
+@bot.event
+async def on_ready():
+    print(f"✅ Connecté en tant que {bot.user}")
+    bot.add_view(CreateVocalView())  # Pour que les boutons persistent même après redémarrage
+
+    # Envoyer le bouton dans le salon s'il n'existe pas encore
     try:
-        await ctx.author.send_modal(VocalModal())
+        channel = bot.get_channel(VOCAL_COMMAND_CHANNEL_ID)
+        if channel:
+            async for msg in channel.history(limit=10):
+                if msg.author == bot.user and any(comp.custom_id == "create_vocal_button" for row in msg.components for comp in row.children):
+                    print("✅ Bouton déjà en place.")
+                    break
+            else:
+                await channel.send("**🎤 Crée ton salon vocal privé avec un rôle spécifique :**", view=CreateVocalView())
+                print("✅ Bouton envoyé.")
     except Exception as e:
-        await ctx.send("❌ Erreur lors de l’ouverture du formulaire.", delete_after=5)
-        print(f"Erreur dans !vocal : {e}")
+        print(f"❌ Erreur bouton vocal : {e}")
 
-# === !VOCS POUR LES ADMINS ===
-@bot.command(name="vocs")
-@commands.has_permissions(manage_guild=True)
-async def vocs(ctx):
-    category = ctx.guild.get_channel(VOCAL_CATEGORY_ID)
-    if not category:
-        await ctx.send("❌ Catégorie introuvable.")
+# === GESTION DES MESSAGES ===
+@bot.event
+async def on_message(message):
+    global last_notification_time
+
+    if message.author.bot:
         return
 
-    vocaux = [c for c in category.voice_channels if c.id != CREATOR_VOCAL_ID]
-    if not vocaux:
-        await ctx.send("📭 Aucun salon vocal temporaire actif.")
-        return
+    if message.channel.id in MEDIA_CHANNEL_IDS:
+        has_link = re.search(r'https?://', message.content)
+        has_attachment = len(message.attachments) > 0
+        has_embed = len(message.embeds) > 0
 
-    await ctx.send(f"📋 Liste des vocaux dans **{category.name}** :")
-    for vocal in vocaux:
-        await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`")
+        if not (has_link or has_attachment or has_embed):
+            try:
+                await message.delete()
+                print(f"❌ Message supprimé dans salon {message.channel.name} : {message.content}")
+                try:
+                    await message.author.send(
+                        "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n\n"
+                        "💬 Tu veux discuter ? Tu as ce salon : <#1378524605165207562>\n"
+                        "🔎 Tu recherches des personnes ? C’est par ici : <#1378397438204968981>\n\n"
+                        "👉 Si ça ne se lance pas automatiquement, tape la commande `/forcestart`."
+                    )
+                except Exception as dm_error:
+                    print(f"⚠️ Impossible d'envoyer un DM à {message.author}: {dm_error}")
+            except Exception as e:
+                print(f"Erreur suppression message : {e}")
+
+    if message.channel.id == NOTIF_CHANNEL_ID:
+        now = time.time()
+        if now - last_notification_time >= notification_interval:
+            try:
+                await message.channel.send(f"<@&{NOTIF_ROLE_ID}>")
+                last_notification_time = now
+                print("🔔 Notification envoyée.")
+            except Exception as notif_error:
+                print(f"❌ Erreur notification : {notif_error}")
+        else:
+            print("⏱️ Notification ignorée (moins d'1h)")
+
+    await bot.process_commands(message)
 
 # === LANCEMENT DU BOT ===
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
     bot.run(TOKEN)
 else:
-    print("❌ Token introuvable. Assure-toi qu'il est bien configuré.")
-
-
+    print("❌ Token introuvable. Vérifie la variable Railway ou .env")
