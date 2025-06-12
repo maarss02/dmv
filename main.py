@@ -1,8 +1,10 @@
 import os
 import re
 import time
+import asyncio
 import discord
 from discord.ext import commands
+from discord import ui, Interaction, PermissionOverwrite, ButtonStyle
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement
@@ -11,20 +13,32 @@ load_dotenv()
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
+intents.guilds = True
+intents.voice_states = True
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 🎯 ID des salons à surveiller pour suppression (média uniquement)
+# ===== CONFIGURATION =====
+# Salon(s) pour la suppression automatique de messages non médias
 MEDIA_CHANNEL_IDS = [1371204189908369550, 1370165104943042671]
+# Salon déclencheur de notification @notification
+NOTIF_CHANNEL_ID = 137888888888888888  # à remplacer
+NOTIF_ROLE_ID = 137899999999999999     # à remplacer
+# Salon déclencheur de création de vocal
+CREATOR_VOCAL_ID = 1382766373825937429
+# Catégorie où seront créés les vocaux dynamiques
+VOCAL_CATEGORY_ID = 1382767784064323755
+# Rôles
+ROLE_MEMBRES = 1344287286585458749
+ROLE_SCRIMS = 1378428377412931644
+ROLE_NSFW = 1344287286527004772
 
-# 🔔 ID du salon à notifier et rôle à ping
-NOTIF_CHANNEL_ID = 1344287288946982936  # ← À remplacer
-NOTIF_ROLE_ID = 1344287286527004770     # ← À remplacer
-
-# ⏱️ Intervalle entre mentions (en secondes)
+# Intervalle entre pings @notification
 notification_interval = 60 * 60  # 1h
 last_notification_time = 0
 
+# ===== ÉVÉNEMENTS DISCORD =====
 @bot.event
 async def on_ready():
     print(f"✅ Connecté en tant que {bot.user}")
@@ -36,11 +50,10 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # 🔍 Debug limité aux salons utiles
     if message.channel.id in MEDIA_CHANNEL_IDS or message.channel.id == NOTIF_CHANNEL_ID:
         print(f"[DEBUG] Message reçu dans salon {message.channel.id} : {message.content}")
 
-    # ✅ Suppression dans les salons médias
+    # Suppression des messages non médias
     if message.channel.id in MEDIA_CHANNEL_IDS:
         has_link = re.search(r'https?://', message.content)
         has_attachment = len(message.attachments) > 0
@@ -50,7 +63,6 @@ async def on_message(message):
             try:
                 await message.delete()
                 print(f"❌ Message supprimé dans salon {message.channel.name} : {message.content}")
-
                 try:
                     await message.author.send(
                         "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n\n"
@@ -60,11 +72,10 @@ async def on_message(message):
                     )
                 except Exception as dm_error:
                     print(f"⚠️ Impossible d'envoyer un DM à {message.author}: {dm_error}")
-
             except Exception as e:
                 print(f"Erreur lors de la suppression : {e}")
 
-    # ✅ Notification dans un salon spécifique (toutes les 1h max)
+    # Notification limitée à 1/h
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
@@ -73,15 +84,106 @@ async def on_message(message):
                 last_notification_time = now
                 print("🔔 Mention @notification envoyée.")
             except Exception as notif_error:
-                print(f"❌ Erreur lors de l'envoi de la notification : {notif_error}")
+                print(f"❌ Erreur notification : {notif_error}")
         else:
             print("⏱️ Notification ignorée (moins d'1h depuis la dernière).")
 
     await bot.process_commands(message)
 
-# 🔐 Lancer le bot
+@bot.event
+async def on_voice_state_update(member, before, after):
+    if after.channel and after.channel.id == CREATOR_VOCAL_ID:
+        try:
+            await member.move_to(None)  # On retire l'utilisateur
+            await member.send_modal(VocalModal(author_roles=member.roles))
+        except Exception as e:
+            print(f"❌ Erreur d'affichage du formulaire : {e}")
+
+# ===== CLASSES UI POUR VOCAL DYNAMIQUE =====
+class VocalModal(ui.Modal, title="🎧 Créer votre salon vocal"):
+    nom = ui.TextInput(label="Nom du vocal", placeholder="Ex: Chill, Team X", max_length=32)
+    slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="Ex: 5", default="5")
+
+    def __init__(self, author_roles):
+        super().__init__()
+        self.author_roles = author_roles
+        options = [discord.SelectOption(label="Membres", value=str(ROLE_MEMBRES), default=True)]
+        if any(r.id == ROLE_SCRIMS for r in self.author_roles):
+            options.append(discord.SelectOption(label="Scrims", value=str(ROLE_SCRIMS)))
+        if any(r.id == ROLE_NSFW for r in self.author_roles):
+            options.append(discord.SelectOption(label="NSFW", value=str(ROLE_NSFW)))
+        self.role_select = ui.Select(placeholder="Choisir un rôle autorisé", options=options)
+        self.add_item(self.role_select)
+
+    async def on_submit(self, interaction: Interaction):
+        try:
+            name = str(self.nom)
+            limit = int(str(self.slots))
+            if not 1 <= limit <= 15:
+                await interaction.response.send_message("❌ Le nombre doit être entre 1 et 15.", ephemeral=True)
+                return
+
+            role_id = int(self.role_select.values[0])
+            guild = interaction.guild
+            category = guild.get_channel(VOCAL_CATEGORY_ID)
+            everyone = guild.default_role
+            role = guild.get_role(role_id)
+
+            overwrites = {
+                everyone: PermissionOverwrite(connect=False),
+                role: PermissionOverwrite(connect=True),
+                guild.me: PermissionOverwrite(connect=True, manage_channels=True)
+            }
+
+            vocal = await guild.create_voice_channel(name=name, user_limit=limit, overwrites=overwrites, category=category)
+            await interaction.response.send_message(f"✅ Salon vocal créé : **{vocal.name}** *(limite {limit}, rôle : <@&{role_id}>)*", ephemeral=True)
+
+            async def auto_delete_if_empty():
+                await asyncio.sleep(180)
+                if len(vocal.members) == 0:
+                    await vocal.delete()
+                    print(f"🗑️ Salon vocal supprimé (inactif) : {vocal.name}")
+
+            asyncio.create_task(auto_delete_if_empty())
+
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
+
+# ===== COMMANDE ADMIN !vocs POUR GÉRER LES VOCAUX CRÉÉS =====
+class SupprimerVocalView(ui.View):
+    def __init__(self, channel):
+        super().__init__(timeout=180)
+        self.channel = channel
+
+    @ui.button(label="Supprimer", style=ButtonStyle.danger)
+    async def supprimer(self, interaction: Interaction, button: ui.Button):
+        try:
+            await self.channel.delete()
+            await interaction.response.send_message(f"🗑️ Salon vocal **{self.channel.name}** supprimé.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
+
+@bot.command(name="vocs")
+@commands.has_permissions(manage_guild=True)
+async def vocs(ctx):
+    category = ctx.guild.get_channel(VOCAL_CATEGORY_ID)
+    if not category:
+        await ctx.send("❌ Catégorie introuvable.")
+        return
+
+    vocaux = [c for c in category.voice_channels if c.id != CREATOR_VOCAL_ID]
+    if not vocaux:
+        await ctx.send("📭 Aucun salon vocal temporaire actif.")
+        return
+
+    await ctx.send(f"📋 Liste des vocaux dans **{category.name}** :")
+    for vocal in vocaux:
+        view = SupprimerVocalView(vocal)
+        await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`", view=view)
+
+# ===== LANCEMENT DU BOT =====
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
     bot.run(TOKEN)
 else:
-    print("❌ Token introuvable. Assure-toi qu'il est bien dans Railway (Variables).")
+    print("❌ Token introuvable. Assure-toi qu'il est bien configuré.")
