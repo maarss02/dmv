@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 from discord import ui, Interaction, PermissionOverwrite
 from dotenv import load_dotenv
-
+ 
 # === CHARGEMENT ENVIRONNEMENT ===
 load_dotenv()
 
