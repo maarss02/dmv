@@ -20,25 +20,18 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ===== CONFIGURATION =====
-# Salon(s) pour la suppression automatique de messages non médias
 MEDIA_CHANNEL_IDS = [1371204189908369550, 1370165104943042671]
-# Salon déclencheur de notification @notification
 NOTIF_CHANNEL_ID = 137888888888888888  # à remplacer
 NOTIF_ROLE_ID = 137899999999999999     # à remplacer
-# Salon déclencheur de création de vocal
 CREATOR_VOCAL_ID = 1382766373825937429
-# Catégorie où seront créés les vocaux dynamiques
 VOCAL_CATEGORY_ID = 1382767784064323755
-# Rôles
 ROLE_MEMBRES = 1344287286585458749
 ROLE_SCRIMS = 1378428377412931644
 ROLE_NSFW = 1344287286527004772
 
-# Intervalle entre pings @notification
 notification_interval = 60 * 60  # 1h
 last_notification_time = 0
 
-# ===== ÉVÉNEMENTS DISCORD =====
 @bot.event
 async def on_ready():
     print(f"✅ Connecté en tant que {bot.user}")
@@ -53,7 +46,6 @@ async def on_message(message):
     if message.channel.id in MEDIA_CHANNEL_IDS or message.channel.id == NOTIF_CHANNEL_ID:
         print(f"[DEBUG] Message reçu dans salon {message.channel.id} : {message.content}")
 
-    # Suppression des messages non médias
     if message.channel.id in MEDIA_CHANNEL_IDS:
         has_link = re.search(r'https?://', message.content)
         has_attachment = len(message.attachments) > 0
@@ -75,7 +67,6 @@ async def on_message(message):
             except Exception as e:
                 print(f"Erreur lors de la suppression : {e}")
 
-    # Notification limitée à 1/h
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
@@ -94,12 +85,12 @@ async def on_message(message):
 async def on_voice_state_update(member, before, after):
     if after.channel and after.channel.id == CREATOR_VOCAL_ID:
         try:
-            await member.move_to(None)  # On retire l'utilisateur
-            await member.send_modal(VocalModal(author_roles=member.roles))
+            await member.move_to(None)
+            view = VocalModal(author_roles=member.roles)
+            await member.send(view=view)
         except Exception as e:
             print(f"❌ Erreur d'affichage du formulaire : {e}")
 
-# ===== CLASSES UI POUR VOCAL DYNAMIQUE =====
 class VocalModal(ui.Modal, title="🎧 Créer votre salon vocal"):
     nom = ui.TextInput(label="Nom du vocal", placeholder="Ex: Chill, Team X", max_length=32)
     slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="Ex: 5", default="5")
@@ -149,7 +140,6 @@ class VocalModal(ui.Modal, title="🎧 Créer votre salon vocal"):
         except Exception as e:
             await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
 
-# ===== COMMANDE ADMIN !vocs POUR GÉRER LES VOCAUX CRÉÉS =====
 class SupprimerVocalView(ui.View):
     def __init__(self, channel):
         super().__init__(timeout=180)
@@ -181,7 +171,6 @@ async def vocs(ctx):
         view = SupprimerVocalView(vocal)
         await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`", view=view)
 
-# ===== LANCEMENT DU BOT =====
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
     bot.run(TOKEN)
