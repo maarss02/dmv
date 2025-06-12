@@ -28,6 +28,7 @@ VOCAL_CATEGORY_ID = 1382767784064323755
 ROLE_MEMBRES = 1344287286585458749
 ROLE_SCRIMS = 1378428377412931644
 ROLE_NSFW = 1344287286527004772
+VOCAL_COMMAND_CHANNEL_ID = 1382771825775476746  # ⬅️ salon où !vocal est autorisé
 
 ROLE_CHOICES = {
     "Membres": ROLE_MEMBRES,
@@ -92,6 +93,8 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+# === FORMULAIRE VOCAL (MODAL) ===
+
 class VocalModal(ui.Modal, title="Création de salon vocal"):
     nom = ui.TextInput(label="Nom du salon", placeholder="ex: Chill Zone", max_length=32)
     slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="ex: 5", max_length=2)
@@ -137,7 +140,10 @@ class VocalModal(ui.Modal, title="Création de salon vocal"):
                 category=category
             )
 
-            await interaction.response.send_message(f"✅ Salon vocal créé : **{vocal.name}** *(limite {slots}, rôle : <@&{role.id}>)*", ephemeral=True)
+            await interaction.response.send_message(
+                f"✅ Salon vocal créé : **{vocal.name}** *(limite {slots}, rôle : <@&{role.id}>)*",
+                ephemeral=True
+            )
 
             async def auto_delete_if_empty():
                 await asyncio.sleep(180)
@@ -150,10 +156,28 @@ class VocalModal(ui.Modal, title="Création de salon vocal"):
         except Exception as e:
             await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
 
+# === SLASH COMMAND ===
 @bot.tree.command(name="vocal", description="Créer un salon vocal avec un formulaire pop-up")
 async def vocal_slash(interaction: Interaction):
+    if interaction.channel.id != VOCAL_COMMAND_CHANNEL_ID:
+        await interaction.response.send_message("❌ Utilise cette commande dans <#1382771825775476746>.", ephemeral=True)
+        return
     await interaction.response.send_modal(VocalModal())
 
+# === TEXTE !VOCAL ===
+@bot.command(name="vocal")
+async def vocal_text(ctx):
+    if ctx.channel.id != VOCAL_COMMAND_CHANNEL_ID:
+        await ctx.send("❌ Cette commande ne peut être utilisée que dans <#1382771825775476746>.", delete_after=5)
+        return
+
+    try:
+        await ctx.author.send_modal(VocalModal())
+    except Exception as e:
+        await ctx.send("❌ Erreur lors de l’ouverture du formulaire.", delete_after=5)
+        print(f"Erreur dans !vocal : {e}")
+
+# === !VOCS POUR LES ADMINS ===
 @bot.command(name="vocs")
 @commands.has_permissions(manage_guild=True)
 async def vocs(ctx):
@@ -171,9 +195,11 @@ async def vocs(ctx):
     for vocal in vocaux:
         await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`")
 
+# === LANCEMENT DU BOT ===
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
     bot.run(TOKEN)
 else:
     print("❌ Token introuvable. Assure-toi qu'il est bien configuré.")
+
 
