@@ -4,7 +4,7 @@ import time
 import asyncio
 import discord
 from discord.ext import commands
-from discord import ui, Interaction, PermissionOverwrite, ButtonStyle
+from discord import ui, app_commands, Interaction, PermissionOverwrite, ButtonStyle, Embed, TextStyle
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement
@@ -21,13 +21,19 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ===== CONFIGURATION =====
 MEDIA_CHANNEL_IDS = [1371204189908369550, 1370165104943042671]
-NOTIF_CHANNEL_ID = 137888888888888888  # à remplacer
-NOTIF_ROLE_ID = 137899999999999999     # à remplacer
+NOTIF_CHANNEL_ID = 1344287288946982936
+NOTIF_ROLE_ID = 1344287286527004770
 CREATOR_VOCAL_ID = 1382766373825937429
 VOCAL_CATEGORY_ID = 1382767784064323755
 ROLE_MEMBRES = 1344287286585458749
 ROLE_SCRIMS = 1378428377412931644
 ROLE_NSFW = 1344287286527004772
+
+ROLE_CHOICES = {
+    "Membres": ROLE_MEMBRES,
+    "Scrims": ROLE_SCRIMS,
+    "NSFW": ROLE_NSFW,
+}
 
 notification_interval = 60 * 60  # 1h
 last_notification_time = 0
@@ -35,6 +41,11 @@ last_notification_time = 0
 @bot.event
 async def on_ready():
     print(f"✅ Connecté en tant que {bot.user}")
+    try:
+        synced = await bot.tree.sync()
+        print(f"🌐 Slash commands synchronisées : {len(synced)}")
+    except Exception as e:
+        print(f"❌ Erreur de synchronisation des slash commands : {e}")
 
 @bot.event
 async def on_message(message):
@@ -81,55 +92,52 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-@bot.event
-async def on_voice_state_update(member, before, after):
-    if after.channel and after.channel.id == CREATOR_VOCAL_ID:
-        try:
-            await member.move_to(None)
-            await member.send("📝 Tu vas recevoir un formulaire ici pour créer ton salon vocal.")
-            modal = VocalModal(author_roles=member.roles)
-            # On utilise une interaction factice via DM pour simuler le modal
-            # ATTENTION : les modals ne fonctionnent que via interactions boutons/slash — ici on doit revoir logique
-        except Exception as e:
-            print(f"❌ Erreur d'affichage du formulaire : {e}")
+class VocalModal(ui.Modal, title="Création de salon vocal"):
+    nom = ui.TextInput(label="Nom du salon", placeholder="ex: Chill Zone", max_length=32)
+    slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="ex: 5", max_length=2)
 
-class VocalModal(ui.Modal, title="🎧 Créer votre salon vocal"):
-    def __init__(self, author_roles):
-        super().__init__()
-        self.author_roles = author_roles
-        self.nom = ui.TextInput(label="Nom du vocal", placeholder="Ex: Chill, Team X", max_length=32)
-        self.slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="Ex: 5", default="5")
-        self.add_item(self.nom)
-        self.add_item(self.slots)
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.role_select = ui.Select(
+            placeholder="Choisir un rôle autorisé",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="Membres", value="Membres"),
+                discord.SelectOption(label="Scrims", value="Scrims"),
+                discord.SelectOption(label="NSFW", value="NSFW")
+            ]
+        )
+        self.add_item(self.role_select)
 
     async def on_submit(self, interaction: Interaction):
         try:
-            name = str(self.nom.value)
-            limit = int(self.slots.value)
-            if not 1 <= limit <= 15:
-                await interaction.response.send_message("❌ Le nombre doit être entre 1 et 15.", ephemeral=True)
+            nom = self.nom.value
+            slots = int(self.slots.value)
+            role_label = self.role_select.values[0]
+
+            if not 1 <= slots <= 15:
+                await interaction.response.send_message("❌ Nombre de slots invalide (1-15).", ephemeral=True)
                 return
 
-            options = [ROLE_MEMBRES]
-            if any(r.id == ROLE_SCRIMS for r in self.author_roles):
-                options.append(ROLE_SCRIMS)
-            if any(r.id == ROLE_NSFW for r in self.author_roles):
-                options.append(ROLE_NSFW)
-
-            role_id = options[0]
-            guild = interaction.guild
-            category = guild.get_channel(VOCAL_CATEGORY_ID)
-            everyone = guild.default_role
-            role = guild.get_role(role_id)
+            role = interaction.guild.get_role(ROLE_CHOICES[role_label])
+            category = interaction.guild.get_channel(VOCAL_CATEGORY_ID)
+            everyone = interaction.guild.default_role
 
             overwrites = {
                 everyone: PermissionOverwrite(connect=False),
                 role: PermissionOverwrite(connect=True),
-                guild.me: PermissionOverwrite(connect=True, manage_channels=True)
+                interaction.guild.me: PermissionOverwrite(connect=True, manage_channels=True)
             }
 
-            vocal = await guild.create_voice_channel(name=name, user_limit=limit, overwrites=overwrites, category=category)
-            await interaction.response.send_message(f"✅ Salon vocal créé : **{vocal.name}** *(limite {limit}, rôle : <@&{role_id}>)*", ephemeral=True)
+            vocal = await interaction.guild.create_voice_channel(
+                name=nom,
+                user_limit=slots,
+                overwrites=overwrites,
+                category=category
+            )
+
+            await interaction.response.send_message(f"✅ Salon vocal créé : **{vocal.name}** *(limite {slots}, rôle : <@&{role.id}>)*", ephemeral=True)
 
             async def auto_delete_if_empty():
                 await asyncio.sleep(180)
@@ -142,18 +150,9 @@ class VocalModal(ui.Modal, title="🎧 Créer votre salon vocal"):
         except Exception as e:
             await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
 
-class SupprimerVocalView(ui.View):
-    def __init__(self, channel):
-        super().__init__(timeout=180)
-        self.channel = channel
-
-    @ui.button(label="Supprimer", style=ButtonStyle.danger)
-    async def supprimer(self, interaction: Interaction, button: ui.Button):
-        try:
-            await self.channel.delete()
-            await interaction.response.send_message(f"🗑️ Salon vocal **{self.channel.name}** supprimé.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
+@bot.tree.command(name="vocal", description="Créer un salon vocal avec un formulaire pop-up")
+async def vocal_slash(interaction: Interaction):
+    await interaction.response.send_modal(VocalModal())
 
 @bot.command(name="vocs")
 @commands.has_permissions(manage_guild=True)
@@ -170,8 +169,7 @@ async def vocs(ctx):
 
     await ctx.send(f"📋 Liste des vocaux dans **{category.name}** :")
     for vocal in vocaux:
-        view = SupprimerVocalView(vocal)
-        await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`", view=view)
+        await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`")
 
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
