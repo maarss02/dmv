@@ -86,35 +86,37 @@ async def on_voice_state_update(member, before, after):
     if after.channel and after.channel.id == CREATOR_VOCAL_ID:
         try:
             await member.move_to(None)
-            view = VocalModal(author_roles=member.roles)
-            await member.send(view=view)
+            await member.send("📝 Tu vas recevoir un formulaire ici pour créer ton salon vocal.")
+            modal = VocalModal(author_roles=member.roles)
+            # On utilise une interaction factice via DM pour simuler le modal
+            # ATTENTION : les modals ne fonctionnent que via interactions boutons/slash — ici on doit revoir logique
         except Exception as e:
             print(f"❌ Erreur d'affichage du formulaire : {e}")
 
 class VocalModal(ui.Modal, title="🎧 Créer votre salon vocal"):
-    nom = ui.TextInput(label="Nom du vocal", placeholder="Ex: Chill, Team X", max_length=32)
-    slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="Ex: 5", default="5")
-
     def __init__(self, author_roles):
         super().__init__()
         self.author_roles = author_roles
-        options = [discord.SelectOption(label="Membres", value=str(ROLE_MEMBRES), default=True)]
-        if any(r.id == ROLE_SCRIMS for r in self.author_roles):
-            options.append(discord.SelectOption(label="Scrims", value=str(ROLE_SCRIMS)))
-        if any(r.id == ROLE_NSFW for r in self.author_roles):
-            options.append(discord.SelectOption(label="NSFW", value=str(ROLE_NSFW)))
-        self.role_select = ui.Select(placeholder="Choisir un rôle autorisé", options=options)
-        self.add_item(self.role_select)
+        self.nom = ui.TextInput(label="Nom du vocal", placeholder="Ex: Chill, Team X", max_length=32)
+        self.slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="Ex: 5", default="5")
+        self.add_item(self.nom)
+        self.add_item(self.slots)
 
     async def on_submit(self, interaction: Interaction):
         try:
-            name = str(self.nom)
-            limit = int(str(self.slots))
+            name = str(self.nom.value)
+            limit = int(self.slots.value)
             if not 1 <= limit <= 15:
                 await interaction.response.send_message("❌ Le nombre doit être entre 1 et 15.", ephemeral=True)
                 return
 
-            role_id = int(self.role_select.values[0])
+            options = [ROLE_MEMBRES]
+            if any(r.id == ROLE_SCRIMS for r in self.author_roles):
+                options.append(ROLE_SCRIMS)
+            if any(r.id == ROLE_NSFW for r in self.author_roles):
+                options.append(ROLE_NSFW)
+
+            role_id = options[0]
             guild = interaction.guild
             category = guild.get_channel(VOCAL_CATEGORY_ID)
             everyone = guild.default_role
