@@ -28,7 +28,6 @@ VOCAL_CATEGORY_ID = 1382767784064323755
 ROLE_MEMBRES = 1344287286585458749
 ROLE_SCRIMS = 1378428377412931644
 ROLE_NSFW = 1344287286527004772
-ALLOWED_COMMAND_CHANNEL_ID = 1382771825775476746
 
 ROLE_CHOICES = {
     "Membres": ROLE_MEMBRES,
@@ -153,17 +152,7 @@ class VocalModal(ui.Modal, title="Création de salon vocal"):
 
 @bot.tree.command(name="vocal", description="Créer un salon vocal avec un formulaire pop-up")
 async def vocal_slash(interaction: Interaction):
-    if interaction.channel.id != ALLOWED_COMMAND_CHANNEL_ID:
-        await interaction.response.send_message("❌ Tu ne peux utiliser cette commande que dans <#1382771825775476746>.", ephemeral=True)
-        return
     await interaction.response.send_modal(VocalModal())
-
-@bot.command(name="vocal")
-async def vocal_classic(ctx):
-    if ctx.channel.id != ALLOWED_COMMAND_CHANNEL_ID:
-        await ctx.reply("❌ Tu ne peux utiliser cette commande que dans <#1382771825775476746>.")
-        return
-    await ctx.send("📨 Utilise `/vocal` pour créer un salon vocal via un formulaire.")
 
 @bot.command(name="vocs")
 @commands.has_permissions(manage_guild=True)
@@ -187,3 +176,4 @@ if TOKEN:
     bot.run(TOKEN)
 else:
     print("❌ Token introuvable. Assure-toi qu'il est bien configuré.")
+
