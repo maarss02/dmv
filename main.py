@@ -32,7 +32,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 active_vocals = {}
 notification_interval = 60 * 60
 last_notification_time = 0
-last_announcement_msg = None
 
 
 class VocalModal(ui.Modal, title="Créer un salon vocal"):
@@ -58,9 +57,7 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
             category = guild.get_channel(VOCAL_CATEGORY_ID)
             if not category:
                 return await interaction.response.send_message("❌ Erreur : catégorie introuvable.", ephemeral=True)
-            member = guild.get_member(self.user_id)
-            if not member:
-                return await interaction.response.send_message("❌ Impossible de retrouver ton profil.", ephemeral=True)
+
             role = guild.get_role(self.role_id)
             bot_music_role = guild.get_role(ROLE_BOT_MUSIC)
             if not role or not bot_music_role:
@@ -91,6 +88,7 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
                             del active_vocals[self.user_id]
                 except discord.errors.NotFound:
                     pass
+
             asyncio.create_task(auto_delete())
 
         except Exception as e:
@@ -125,93 +123,88 @@ class CreateVocalView(ui.View):
         )
 
 
-class AnnonceModal(ui.Modal, title="Créer ou modifier une annonce"):
-    def __init__(self, mention: str, editing: bool = False, message_id: int = None, prefill: str = ""):
+class AnnonceModal(ui.Modal, title="Créer ou modifier l’annonce"):
+    def __init__(self, mention: str, editing: bool = False, message_id: int = None, content: str = ""):
         super().__init__(timeout=300)
         self.mention = mention
         self.editing = editing
         self.message_id = message_id
-        self.msg = ui.TextInput(label="Contenu de l'annonce", default=prefill, style=TextStyle.paragraph, max_length=2000)
+        self.msg = ui.TextInput(label="Contenu de l'annonce", style=TextStyle.paragraph, max_length=2000, default=content)
         self.add_item(self.msg)
 
     async def on_submit(self, interaction: Interaction):
         try:
             channel = interaction.guild.get_channel(ANNONCE_PUBLIC_CHANNEL)
             content = f"|| {self.mention} ||\n\n{self.msg.value}" if self.mention else self.msg.value
+
             if self.editing and self.message_id:
                 try:
                     message = await channel.fetch_message(self.message_id)
                     await message.edit(content=content)
-                    await interaction.response.send_message("✏️ Annonce modifiée avec succès.", ephemeral=True)
-                    return
-                except:
-                    await interaction.response.send_message("❌ Impossible de modifier le message (ID incorrect ?)", ephemeral=True)
-                    return
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message("✏️ Annonce modifiée avec succès.", ephemeral=True)
+                except Exception as e:
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(f"❌ Impossible de modifier le message : {e}", ephemeral=True)
             else:
                 msg = await channel.send(content)
-                await interaction.response.send_message("✅ Annonce publiée avec succès.", ephemeral=True)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("✅ Annonce publiée avec succès.", ephemeral=True)
+
         except Exception as e:
-            await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
 
 
 class RoleMentionView(ui.View):
-    def __init__(self, editing=False, message_id=None):
+    def __init__(self, editing=False):
         super().__init__(timeout=60)
         self.editing = editing
-        self.message_id = message_id
-
-    async def send_modal_with_prefill(self, interaction: Interaction, mention):
-        prefill = ""
-        if self.editing and self.message_id:
-            try:
-                channel = interaction.guild.get_channel(ANNONCE_PUBLIC_CHANNEL)
-                message = await channel.fetch_message(self.message_id)
-                content = message.content
-                parts = content.split("||")
-                prefill = parts[-1].strip() if "||" in content else content.strip()
-            except:
-                await interaction.response.send_message("❌ Message introuvable pour le préremplissage.", ephemeral=True)
-                return
-        await interaction.response.send_modal(AnnonceModal(mention, editing=self.editing, message_id=self.message_id, prefill=prefill))
 
     @ui.button(label="@everyone", style=ButtonStyle.primary)
     async def everyone(self, interaction: Interaction, _):
-        await self.send_modal_with_prefill(interaction, "@everyone")
+        await interaction.response.send_modal(AnnonceModal("everyone", editing=self.editing))
 
     @ui.button(label="@Notif", style=ButtonStyle.success)
     async def notif(self, interaction: Interaction, _):
-        await self.send_modal_with_prefill(interaction, f"<@&{NOTIF_ROLE_ID}>")
+        await interaction.response.send_modal(AnnonceModal(f"&{NOTIF_ROLE_ID}", editing=self.editing))
 
     @ui.button(label="Aucune mention", style=ButtonStyle.secondary)
     async def none(self, interaction: Interaction, _):
-        await self.send_modal_with_prefill(interaction, "")
+        await interaction.response.send_modal(AnnonceModal("", editing=self.editing))
 
 
 class AnnonceButtons(ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
     @ui.button(label="📢 Créer une annonce", style=ButtonStyle.primary)
     async def create_annonce(self, interaction: Interaction, _):
         if not any(role.id in [ROLE_FONDATEUR, ROLE_MODO] for role in interaction.user.roles):
             return await interaction.response.send_message("Tu n'as pas la permission.", ephemeral=True)
-        await interaction.response.send_message("Choisis le rôle à mentionner :", view=RoleMentionView(editing=False), ephemeral=True)
+        await interaction.response.send_message(
+            "Choisis le rôle à mentionner :", view=RoleMentionView(editing=False), ephemeral=True
+        )
 
     @ui.button(label="✏️ Modifier une annonce", style=ButtonStyle.secondary)
     async def edit_annonce(self, interaction: Interaction, _):
         if not any(role.id in [ROLE_FONDATEUR, ROLE_MODO] for role in interaction.user.roles):
-            return await interaction.response.send_modal(EditIDModal())
+            return await interaction.response.send_message("Tu n'as pas la permission.", ephemeral=True)
 
+        await interaction.response.send_message("Entre l’ID du message à modifier :", ephemeral=True)
 
-class EditIDModal(ui.Modal, title="Modifier une annonce existante"):
-    message_id = ui.TextInput(label="ID du message à modifier", placeholder="ex: 123456789012345678")
+        def check(m):
+            return m.author == interaction.user and m.channel == interaction.channel
 
-    async def on_submit(self, interaction: Interaction):
         try:
-            msg_id = int(self.message_id.value)
-            await interaction.response.send_message("Choisis le rôle à mentionner :", view=RoleMentionView(editing=True, message_id=msg_id), ephemeral=True)
-        except:
-            await interaction.response.send_message("❌ ID invalide.", ephemeral=True)
+            msg = await bot.wait_for("message", timeout=60, check=check)
+            channel = interaction.guild.get_channel(ANNONCE_PUBLIC_CHANNEL)
+            original = await channel.fetch_message(int(msg.content))
+            mention = "everyone" if "@everyone" in original.content else f"&{NOTIF_ROLE_ID}" if f"<@&{NOTIF_ROLE_ID}>" in original.content else ""
+            clean_content = re.sub(r"<@&?\d+>", "", original.content).strip()
+            await interaction.followup.send("Choisis à nouveau la mention :", view=RoleMentionView(editing=True))
+            AnnonceModal.message_id = int(msg.content)
+            AnnonceModal.content = clean_content
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ Erreur : {e}", ephemeral=True)
 
 
 @bot.event
@@ -228,33 +221,37 @@ async def on_ready():
         async for msg in annonce_channel.history(limit=10):
             if msg.author == bot.user:
                 await msg.delete()
-        await annonce_channel.send("📣 Utilise les boutons ci-dessous pour gérer une annonce :", view=AnnonceButtons())
+        await annonce_channel.send("📣 Boutons pour gérer une annonce :", view=AnnonceButtons())
     except Exception as e:
-        print(f"❌ Erreur dans on_ready : {e}")
+        print(f"❌ Erreur on_ready : {e}")
 
 
 @bot.event
 async def on_message(message):
     global last_notification_time
+
     if message.author.bot:
         return
+
     if message.channel.id in MEDIA_CHANNEL_IDS:
         if not (re.search(r'https?://', message.content) or message.attachments or message.embeds):
             try:
                 await message.delete()
                 await message.author.send(
                     "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n\n"
-                    "💬 Salon discussion : <#1378524605165207562>\n"
+                    "💬 Discussion : <#1378524605165207562>\n"
                     "🔎 Recherches : <#1378397438204968981>\n"
                     "👉 Tape `/forcestart` si besoin."
                 )
             except:
                 pass
+
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
             await message.channel.send(f"<@&{NOTIF_ROLE_ID}>")
             last_notification_time = now
+
     await bot.process_commands(message)
 
 
@@ -278,3 +275,4 @@ if TOKEN:
     bot.run(TOKEN)
 else:
     print("❌ Token introuvable.")
+
