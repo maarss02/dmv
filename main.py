@@ -201,3 +201,11 @@ async def on_ready():
 
     except Exception as e:
         print(f"❌ Erreur dans on_ready : {e}")
+
+# === Lancer le bot ===
+load_dotenv()
+TOKEN = os.getenv("TOKEN")
+if TOKEN:
+    bot.run(TOKEN)
+else:
+    print("❌ Token introuvable.")
