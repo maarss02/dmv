@@ -1,14 +1,4 @@
-# Voici le fichier complet `main.py` mis à jour avec la suppression auto des vocaux au bout de 5 minutes
-from pathlib import Path
 
-# Code fusionné avec :
-# - 1 vocal par personne
-# - Rôle bots musique autorisé
-# - Suppression automatique après 5 minutes
-# - Bouton "Créer un vocal" → qui ouvre un menu privé Membres/Scrims
-# - Compatible Railway (TOKEN par variables d'env)
-
-complete_code = '''
 import os
 import re
 import time
@@ -203,9 +193,3 @@ if TOKEN:
     bot.run(TOKEN)
 else:
     print("❌ Token introuvable.")
-'''
-
-# Sauvegarder le nouveau fichier main.py
-path = Path("/mnt/data/main.py")
-path.write_text(complete_code.strip())
-path.name
