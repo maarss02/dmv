@@ -79,7 +79,7 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
               ),
               bot_music_role: PermissionOverwrite(connect=True),
               guild.me: PermissionOverwrite(connect=True, manage_channels=True)
-            }
+         }
 
 
             vocal = await guild.create_voice_channel(
