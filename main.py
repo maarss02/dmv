@@ -13,9 +13,13 @@ NOTIF_CHANNEL_ID = 1344287288946982936
 NOTIF_ROLE_ID = 1344287286527004770
 CREATOR_BUTTON_CHANNEL = 1382771825775476746
 VOCAL_CATEGORY_ID = 1382767784064323755
+ANNOUNCE_BUTTON_CHANNEL = 1344287289425268840
+ANNOUNCE_POST_CHANNEL = 1344287287168729168
 ROLE_MEMBRES = 1344287286585458749
 ROLE_SCRIMS = 1378428377412931644
 ROLE_BOT_MUSIC = 1345877829811699755
+ROLE_MODO = 1344287286585458757
+ROLE_FONDATEUR = 1344287286598307900
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -30,6 +34,7 @@ active_vocals = {}
 notification_interval = 60 * 60  # 1h
 last_notification_time = 0
 
+# === MODAL POUR LES VOCAUX ===
 class VocalModal(ui.Modal, title="Créer un salon vocal"):
     nom = ui.TextInput(label="Nom du salon", placeholder="ex: Chill Zone", max_length=32)
     slots = ui.TextInput(label="Nombre de personnes (1-15)", placeholder="ex: 5", max_length=2)
@@ -53,48 +58,30 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
                 return
 
             guild = interaction.guild
-            await guild.chunk()  # charge les membres si besoin
+            await guild.chunk()
             category = guild.get_channel(VOCAL_CATEGORY_ID)
             if not category:
-                await interaction.response.send_message("❌ Erreur : catégorie introuvable.", ephemeral=True)
-                return
-
-            member = guild.get_member(self.user_id)
-            if not member:
-                await interaction.response.send_message("❌ Impossible de retrouver ton profil sur le serveur.", ephemeral=True)
-                return
+                return await interaction.response.send_message("❌ Catégorie introuvable.", ephemeral=True)
 
             role = guild.get_role(self.role_id)
-            if not role:
-                await interaction.response.send_message("❌ Impossible de retrouver le rôle sélectionné.", ephemeral=True)
-                return
-
             bot_music_role = guild.get_role(ROLE_BOT_MUSIC)
-            if not bot_music_role:
-                await interaction.response.send_message("❌ Impossible de retrouver le rôle des bots musique.", ephemeral=True)
-                return
-
-            everyone = guild.default_role
+            if not role or not bot_music_role:
+                return await interaction.response.send_message("❌ Rôle introuvable.", ephemeral=True)
 
             overwrites = {
-                everyone: PermissionOverwrite(connect=False),
+                guild.default_role: PermissionOverwrite(connect=False),
                 role: PermissionOverwrite(connect=True),
                 bot_music_role: PermissionOverwrite(connect=True),
                 guild.me: PermissionOverwrite(connect=True, manage_channels=True)
             }
 
             vocal = await guild.create_voice_channel(
-                name=nom,
-                user_limit=slots,
-                overwrites=overwrites,
-                category=category
+                name=nom, user_limit=slots, overwrites=overwrites, category=category
             )
 
             active_vocals[self.user_id] = vocal.id
-
             await interaction.response.send_message(
-                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle : <@&{role.id}>)",
-                ephemeral=True
+                f"✅ Salon **{nom}** créé (limite {slots}, rôle : <@&{role.id}>)", ephemeral=True
             )
 
             async def auto_delete():
@@ -103,13 +90,13 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
                     await vocal.delete()
                     if self.user_id in active_vocals and active_vocals[self.user_id] == vocal.id:
                         del active_vocals[self.user_id]
-                    print(f"🗑️ Salon vocal supprimé (inactif) : {vocal.name}")
 
             asyncio.create_task(auto_delete())
 
         except Exception as e:
             await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
 
+# === BOUTONS POUR VOCAUX ===
 class RoleChoiceView(ui.View):
     def __init__(self, user_id: int):
         super().__init__(timeout=60)
@@ -139,17 +126,55 @@ class CreateVocalView(ui.View):
             ephemeral=True
         )
 
+# === ANNONCE ===
+class AnnouncementModal(ui.Modal, title="Créer une annonce"):
+    contenu = ui.TextInput(label="Contenu de l’annonce", placeholder="Votre message ici...", style=TextStyle.paragraph)
+
+    async def on_submit(self, interaction: Interaction):
+        try:
+            channel = interaction.guild.get_channel(ANNOUNCE_POST_CHANNEL)
+            if not channel:
+                return await interaction.response.send_message("❌ Salon d’annonce introuvable.", ephemeral=True)
+
+            async for msg in channel.history(limit=10):
+                if msg.author == bot.user:
+                    await msg.delete()
+
+            await channel.send(self.contenu.value)
+            await interaction.response.send_message("✅ Annonce publiée avec succès.", ephemeral=True)
+
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Erreur annonce : {e}", ephemeral=True)
+
+class CreateAnnouncementView(ui.View):
+    @ui.button(label="📢 Créer une annonce", style=ButtonStyle.primary)
+    async def announce_button(self, interaction: Interaction, button: ui.Button):
+        roles = [r.id for r in interaction.user.roles]
+        if ROLE_FONDATEUR not in roles and ROLE_MODO not in roles:
+            return await interaction.response.send_message("❌ Tu n’as pas la permission.", ephemeral=True)
+        await interaction.response.send_modal(AnnouncementModal())
+
+# === EVENTS ===
 @bot.event
 async def on_ready():
     print(f"✅ Connecté en tant que {bot.user}")
     try:
-        channel = bot.get_channel(CREATOR_BUTTON_CHANNEL)
-        async for msg in channel.history(limit=10):
+        # Bouton création vocal
+        vocal_channel = bot.get_channel(CREATOR_BUTTON_CHANNEL)
+        async for msg in vocal_channel.history(limit=10):
             if msg.author == bot.user:
                 await msg.delete()
-        await channel.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
+        await vocal_channel.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
+
+        # Bouton création annonce
+        announce_button_channel = bot.get_channel(ANNOUNCE_BUTTON_CHANNEL)
+        async for msg in announce_button_channel.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+        await announce_button_channel.send("📢 Clique ici pour créer une annonce :", view=CreateAnnouncementView())
+
     except Exception as e:
-        print(f"❌ Erreur affichage bouton vocal : {e}")
+        print(f"❌ Erreur au démarrage : {e}")
 
 @bot.event
 async def on_message(message):
@@ -160,23 +185,14 @@ async def on_message(message):
 
     if message.channel.id in MEDIA_CHANNEL_IDS:
         has_link = re.search(r'https?://', message.content)
-        has_attachment = len(message.attachments) > 0
-        has_embed = len(message.embeds) > 0
-
+        has_attachment = message.attachments
+        has_embed = message.embeds
         if not (has_link or has_attachment or has_embed):
             try:
                 await message.delete()
-                try:
-                    await message.author.send(
-                        "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n\n"
-                        "💬 Tu veux discuter ? Tu as ce salon : <#1378524605165207562>\n"
-                        "🔎 Tu recherches des personnes ? C’est par ici : <#1378397438204968981>\n\n"
-                        "👉 Si ça ne se lance pas automatiquement, tape la commande `/forcestart`."
-                    )
-                except Exception:
-                    pass
-            except Exception as e:
-                print(f"Erreur suppression message : {e}")
+                await message.author.send("❌ Ton message a été supprimé car ce salon est réservé aux bots.")
+            except:
+                pass
 
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
@@ -184,8 +200,8 @@ async def on_message(message):
             try:
                 await message.channel.send(f"<@&{NOTIF_ROLE_ID}>")
                 last_notification_time = now
-            except Exception as e:
-                print(f"Erreur notification : {e}")
+            except:
+                pass
 
     await bot.process_commands(message)
 
@@ -193,20 +209,13 @@ async def on_message(message):
 @commands.has_permissions(manage_guild=True)
 async def vocs(ctx):
     category = ctx.guild.get_channel(VOCAL_CATEGORY_ID)
-    if not category:
-        await ctx.send("❌ Catégorie introuvable.")
-        return
-
     vocaux = [c for c in category.voice_channels if c.id != CREATOR_BUTTON_CHANNEL]
     if not vocaux:
-        await ctx.send("📭 Aucun salon vocal temporaire actif.")
-        return
+        return await ctx.send("📭 Aucun salon vocal actif.")
+    for v in vocaux:
+        await ctx.send(f"🔊 **{v.name}** – `{len(v.members)} connecté(s)`")
 
-    await ctx.send(f"📋 Liste des vocaux dans **{category.name}** :")
-    for vocal in vocaux:
-        await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`")
-
-# === Lancer le bot ===
+# === LANCEMENT ===
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
