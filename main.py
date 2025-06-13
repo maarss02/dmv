@@ -67,27 +67,28 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
             if not role or not bot_music_role:
                 return await interaction.response.send_message("❌ Rôle introuvable.", ephemeral=True)
 
-       overwrites = {
-    guild.default_role: PermissionOverwrite(connect=False),  # @everyone : aucun accès
-    role: PermissionOverwrite(
-        view_channel=True,
-        connect=True,
-        speak=True,
-        stream=True,
-        use_voice_activation=True,
-        use_soundboard=True,
-        use_external_sounds=True
-    ),
-    bot_music_role: PermissionOverwrite(
-        view_channel=True,
-        connect=True
-    ),
-    guild.me: PermissionOverwrite(
-        view_channel=True,
-        connect=True,
-        manage_channels=True
-    )
-}
+                  overwrites = {
+                guild.default_role: PermissionOverwrite(connect=False),  # @everyone : aucun accès
+                role: PermissionOverwrite(
+                    view_channel=True,
+                    connect=True,
+                    speak=True,
+                    stream=True,
+                    use_voice_activation=True,
+                    use_soundboard=True,
+                    use_external_sounds=True
+                ),
+                bot_music_role: PermissionOverwrite(
+                    view_channel=True,
+                    connect=True
+                ),
+                guild.me: PermissionOverwrite(
+                    view_channel=True,
+                    connect=True,
+                    manage_channels=True
+                )
+            }
+
 
               bot_music_role: PermissionOverwrite(connect=True),
               guild.me: PermissionOverwrite(connect=True, manage_channels=True)
