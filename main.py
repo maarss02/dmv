@@ -47,19 +47,13 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
         self.role_id = role_id
         self.user_id = user_id
 
-        async def on_submit(self, interaction: Interaction):
+    async def on_submit(self, interaction: Interaction):
         try:
-            print(f"📩 {interaction.user} a soumis le formulaire vocal.")
-
             nom = f"˒﹚) {self.nom.value}"
             slots = int(self.slots.value)
 
-            if len(nom) > 100:
-                return await interaction.response.send_message("❌ Nom de salon trop long (max 100 caractères).", ephemeral=True)
-
             if not 1 <= slots <= 15:
                 return await interaction.response.send_message("❌ Nombre de slots invalide (1-15).", ephemeral=True)
-
             if self.user_id in active_vocals:
                 return await interaction.response.send_message("❌ Tu as déjà un salon actif.", ephemeral=True)
 
@@ -121,8 +115,8 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
             asyncio.create_task(auto_delete())
 
         except Exception as e:
-            print(f"❌ Erreur dans on_submit : {e}")
             await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
+
 
 
 
