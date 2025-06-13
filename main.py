@@ -184,6 +184,25 @@ class AnnonceButtons(ui.View):
             "Quel rôle veux-tu mentionner dans la modification de l’annonce ?",
             view=RoleMentionView(editing=True), ephemeral=True)
 
+@bot.event
+async def on_ready():
+    print(f"✅ Connecté en tant que {bot.user}")
+    try:
+        # Mise à jour du bouton vocal
+        channel = bot.get_channel(CREATOR_BUTTON_CHANNEL)
+        async for msg in channel.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+        await channel.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
+
+        # Mise à jour des boutons d’annonce
+        annonce_channel = bot.get_channel(ANNONCE_BUTTON_CHANNEL)
+        async for msg in annonce_channel.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+        await annonce_channel.send("📣 Utilise les boutons ci-dessous pour gérer une annonce :", view=AnnonceButtons())
+    except Exception as e:
+        print(f"❌ Erreur dans on_ready : {e}")
 
 # === Lancer le bot ===
 load_dotenv()
