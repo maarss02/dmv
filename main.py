@@ -4,7 +4,7 @@ import time
 import asyncio
 import discord
 from discord.ext import commands
-from discord import ui, Interaction, ButtonStyle, TextStyle, Embed, PermissionOverwrite
+from discord import ui, Interaction, ButtonStyle, TextStyle, PermissionOverwrite
 from dotenv import load_dotenv
 
 # === CONFIGURATION ===
@@ -54,11 +54,12 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
 
             guild = interaction.guild
             category = guild.get_channel(VOCAL_CATEGORY_ID)
-            everyone = guild.default_role
-            member = guild.get_member(self.user_id)
+            if not category:
+                await interaction.response.send_message("❌ Catégorie introuvable.", ephemeral=True)
+                return
 
             overwrites = {
-                everyone: PermissionOverwrite(connect=False),
+                guild.default_role: PermissionOverwrite(connect=False),
                 guild.get_role(self.role_id): PermissionOverwrite(connect=True),
                 guild.get_role(ROLE_BOT_MUSIC): PermissionOverwrite(connect=True),
                 guild.me: PermissionOverwrite(connect=True, manage_channels=True)
@@ -149,14 +150,9 @@ async def on_message(message):
                 await message.delete()
                 try:
                     await message.author.send(
-                        "👋 Ton message a été supprimé car ce salon est réservé aux BOT.
-
-"
-                        "💬 Tu veux discuter ? Tu as ce salon : <#1378524605165207562>
-"
-                        "🔎 Tu recherches des personnes ? C’est par ici : <#1378397438204968981>
-
-"
+                        "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n\n"
+                        "💬 Tu veux discuter ? Tu as ce salon : <#1378524605165207562>\n"
+                        "🔎 Tu recherches des personnes ? C’est par ici : <#1378397438204968981>\n\n"
                         "👉 Si ça ne se lance pas automatiquement, tape la commande `/forcestart`."
                     )
                 except Exception:
@@ -192,6 +188,7 @@ async def vocs(ctx):
     for vocal in vocaux:
         await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`")
 
+# Lancement
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
     bot.run(TOKEN)
