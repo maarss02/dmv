@@ -53,13 +53,10 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
                 return
 
             guild = interaction.guild
-            if not guild:
-                await interaction.response.send_message("❌ Impossible de trouver le serveur.", ephemeral=True)
-                return
-
+            await guild.chunk()  # charge les membres si besoin
             category = guild.get_channel(VOCAL_CATEGORY_ID)
             if not category:
-                await interaction.response.send_message("❌ Impossible de trouver la catégorie.", ephemeral=True)
+                await interaction.response.send_message("❌ Erreur : catégorie introuvable.", ephemeral=True)
                 return
 
             member = guild.get_member(self.user_id)
@@ -67,11 +64,22 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
                 await interaction.response.send_message("❌ Impossible de retrouver ton profil sur le serveur.", ephemeral=True)
                 return
 
+            role = guild.get_role(self.role_id)
+            if not role:
+                await interaction.response.send_message("❌ Impossible de retrouver le rôle sélectionné.", ephemeral=True)
+                return
+
+            bot_music_role = guild.get_role(ROLE_BOT_MUSIC)
+            if not bot_music_role:
+                await interaction.response.send_message("❌ Impossible de retrouver le rôle des bots musique.", ephemeral=True)
+                return
+
             everyone = guild.default_role
+
             overwrites = {
                 everyone: PermissionOverwrite(connect=False),
-                guild.get_role(self.role_id): PermissionOverwrite(connect=True),
-                guild.get_role(ROLE_BOT_MUSIC): PermissionOverwrite(connect=True),
+                role: PermissionOverwrite(connect=True),
+                bot_music_role: PermissionOverwrite(connect=True),
                 guild.me: PermissionOverwrite(connect=True, manage_channels=True)
             }
 
@@ -85,7 +93,7 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
             active_vocals[self.user_id] = vocal.id
 
             await interaction.response.send_message(
-                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle : <@&{self.role_id}>)",
+                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle : <@&{role.id}>)",
                 ephemeral=True
             )
 
@@ -150,7 +158,6 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # Supprimer les messages sans liens/médias
     if message.channel.id in MEDIA_CHANNEL_IDS:
         has_link = re.search(r'https?://', message.content)
         has_attachment = len(message.attachments) > 0
@@ -171,7 +178,6 @@ async def on_message(message):
             except Exception as e:
                 print(f"Erreur suppression message : {e}")
 
-    # Ping @notification max toutes les heures
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
@@ -180,8 +186,6 @@ async def on_message(message):
                 last_notification_time = now
             except Exception as e:
                 print(f"Erreur notification : {e}")
-        else:
-            print("⏱️ Notification ignorée (1h pas écoulée).")
 
     await bot.process_commands(message)
 
@@ -202,7 +206,8 @@ async def vocs(ctx):
     for vocal in vocaux:
         await ctx.send(f"🔊 **{vocal.name}** – `{len(vocal.members)} connecté(s)`")
 
-# Lancement
+# === Lancer le bot ===
+load_dotenv()
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
     bot.run(TOKEN)
