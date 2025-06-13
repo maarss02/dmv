@@ -48,73 +48,72 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
         self.user_id = user_id
 
     async def on_submit(self, interaction: Interaction):
-        try:
-            nom = f"˒﹚) {self.nom.value}"
-slots = int(self.slots.value)
+    try:
+        nom = f"˒﹚) {self.nom.value}"
+        slots = int(self.slots.value)
 
-if not 1 <= slots <= 15:
-    return await interaction.response.send_message("❌ Nombre de slots invalide (1-15).", ephemeral=True)
-if self.user_id in active_vocals:
-    return await interaction.response.send_message("❌ Tu as déjà un salon actif.", ephemeral=True)
+        if not 1 <= slots <= 15:
+            return await interaction.response.send_message("❌ Nombre de slots invalide (1-15).", ephemeral=True)
+        if self.user_id in active_vocals:
+            return await interaction.response.send_message("❌ Tu as déjà un salon actif.", ephemeral=True)
 
-guild = interaction.guild
-await guild.chunk()
-category = guild.get_channel(VOCAL_CATEGORY_ID)
-if not category:
-    return await interaction.response.send_message("❌ Catégorie introuvable.", ephemeral=True)
+        guild = interaction.guild
+        await guild.chunk()
+        category = guild.get_channel(VOCAL_CATEGORY_ID)
+        if not category:
+            return await interaction.response.send_message("❌ Catégorie introuvable.", ephemeral=True)
 
-role = guild.get_role(self.role_id)
-bot_music_role = guild.get_role(ROLE_BOT_MUSIC)
-if not role or not bot_music_role:
-    return await interaction.response.send_message("❌ Rôle introuvable.", ephemeral=True)
+        role = guild.get_role(self.role_id)
+        bot_music_role = guild.get_role(ROLE_BOT_MUSIC)
+        if not role or not bot_music_role:
+            return await interaction.response.send_message("❌ Rôle introuvable.", ephemeral=True)
 
-overwrites = {
-    guild.default_role: PermissionOverwrite(connect=False),  # @everyone ne peut pas rejoindre
-    role: PermissionOverwrite(
-        view_channel=True,
-        connect=True,
-        speak=True,
-        stream=True,
-        use_voice_activation=True,
-        use_soundboard=True,
-        use_external_sounds=True
-    ),
-    bot_music_role: PermissionOverwrite(
-        view_channel=True,
-        connect=True
-    ),
-    guild.me: PermissionOverwrite(
-        view_channel=True,
-        connect=True,
-        manage_channels=True
-    )
-}
-
-
-
-            vocal = await guild.create_voice_channel(
-                name=nom, user_limit=slots, overwrites=overwrites, category=category
+        overwrites = {
+            guild.default_role: PermissionOverwrite(connect=False),  # @everyone : aucun accès
+            role: PermissionOverwrite(
+                view_channel=True,
+                connect=True,
+                speak=True,
+                stream=True,
+                use_voice_activation=True,
+                use_soundboard=True,
+                use_external_sounds=True
+            ),
+            bot_music_role: PermissionOverwrite(
+                view_channel=True,
+                connect=True
+            ),
+            guild.me: PermissionOverwrite(
+                view_channel=True,
+                connect=True,
+                manage_channels=True
             )
-            active_vocals[self.user_id] = vocal.id
+        }
 
-            await interaction.response.send_message(
-                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@&{role.id}>)", ephemeral=True
-            )
+        vocal = await guild.create_voice_channel(
+            name=nom, user_limit=slots, overwrites=overwrites, category=category
+        )
+        active_vocals[self.user_id] = vocal.id
 
-            async def auto_delete():
-                await asyncio.sleep(300)
-                if len(vocal.members) == 0:
-                    try:
-                        await vocal.delete()
-                    except discord.NotFound:
-                        pass
-                    if active_vocals.get(self.user_id) == vocal.id:
-                        del active_vocals[self.user_id]
+        await interaction.response.send_message(
+            f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@&{role.id}>)", ephemeral=True
+        )
 
-            asyncio.create_task(auto_delete())
+        async def auto_delete():
+            await asyncio.sleep(300)
+            if len(vocal.members) == 0:
+                try:
+                    await vocal.delete()
+                except discord.NotFound:
+                    pass
+                if active_vocals.get(self.user_id) == vocal.id:
+                    del active_vocals[self.user_id]
 
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
+        asyncio.create_task(auto_delete())
+
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
+
 
 class RoleChoiceView(ui.View):
     def __init__(self, user_id: int):
