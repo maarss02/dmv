@@ -4,7 +4,7 @@ import time
 import asyncio
 import discord
 from discord.ext import commands
-from discord import ui, Interaction, ButtonStyle, TextStyle, PermissionOverwrite
+from discord import ui, Interaction, ButtonStyle, TextStyle, Embed, PermissionOverwrite
 from dotenv import load_dotenv
 
 # === CONFIGURATION ===
@@ -53,13 +53,23 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
                 return
 
             guild = interaction.guild
-            category = guild.get_channel(VOCAL_CATEGORY_ID)
-            if not category:
-                await interaction.response.send_message("❌ Catégorie introuvable.", ephemeral=True)
+            if not guild:
+                await interaction.response.send_message("❌ Impossible de trouver le serveur.", ephemeral=True)
                 return
 
+            category = guild.get_channel(VOCAL_CATEGORY_ID)
+            if not category:
+                await interaction.response.send_message("❌ Impossible de trouver la catégorie.", ephemeral=True)
+                return
+
+            member = guild.get_member(self.user_id)
+            if not member:
+                await interaction.response.send_message("❌ Impossible de retrouver ton profil sur le serveur.", ephemeral=True)
+                return
+
+            everyone = guild.default_role
             overwrites = {
-                guild.default_role: PermissionOverwrite(connect=False),
+                everyone: PermissionOverwrite(connect=False),
                 guild.get_role(self.role_id): PermissionOverwrite(connect=True),
                 guild.get_role(ROLE_BOT_MUSIC): PermissionOverwrite(connect=True),
                 guild.me: PermissionOverwrite(connect=True, manage_channels=True)
@@ -140,6 +150,7 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    # Supprimer les messages sans liens/médias
     if message.channel.id in MEDIA_CHANNEL_IDS:
         has_link = re.search(r'https?://', message.content)
         has_attachment = len(message.attachments) > 0
@@ -160,6 +171,7 @@ async def on_message(message):
             except Exception as e:
                 print(f"Erreur suppression message : {e}")
 
+    # Ping @notification max toutes les heures
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
@@ -168,6 +180,8 @@ async def on_message(message):
                 last_notification_time = now
             except Exception as e:
                 print(f"Erreur notification : {e}")
+        else:
+            print("⏱️ Notification ignorée (1h pas écoulée).")
 
     await bot.process_commands(message)
 
