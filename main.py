@@ -49,7 +49,7 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
 
     async def on_submit(self, interaction: Interaction):
         try:
-            nom = self.nom.value
+            nom = f"˒﹚) {self.nom.value}"
             slots = int(self.slots.value)
             if not 1 <= slots <= 15:
                 return await interaction.response.send_message("❌ Nombre de slots invalide (1-15).", ephemeral=True)
