@@ -149,9 +149,14 @@ async def on_message(message):
                 await message.delete()
                 try:
                     await message.author.send(
-                        "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n\n"
-                        "💬 Tu veux discuter ? Tu as ce salon : <#1378524605165207562>\n"
-                        "🔎 Tu recherches des personnes ? C’est par ici : <#1378397438204968981>\n\n"
+                        "👋 Ton message a été supprimé car ce salon est réservé aux BOT.
+
+"
+                        "💬 Tu veux discuter ? Tu as ce salon : <#1378524605165207562>
+"
+                        "🔎 Tu recherches des personnes ? C’est par ici : <#1378397438204968981>
+
+"
                         "👉 Si ça ne se lance pas automatiquement, tape la commande `/forcestart`."
                     )
                 except Exception:
