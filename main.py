@@ -33,9 +33,7 @@ active_vocals = {}
 notification_interval = 60 * 60
 last_notification_time = 0
 
-# =========================
-#       SYSTEME VOCAL
-# =========================
+# ============ VOCAL SYSTEM ============
 
 class VocalModal(ui.Modal, title="Créer un salon vocal"):
     nom = ui.TextInput(label="Nom du salon", placeholder="ex: Chill Zone", max_length=32)
@@ -59,40 +57,32 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
             guild = interaction.guild
             await guild.chunk()
             category = guild.get_channel(VOCAL_CATEGORY_ID)
-            if not category:
-                return await interaction.response.send_message("❌ Catégorie introuvable.", ephemeral=True)
 
             role = guild.get_role(self.role_id)
             bot_music_role = guild.get_role(ROLE_BOT_MUSIC)
-            if not role or not bot_music_role:
-                return await interaction.response.send_message("❌ Rôle introuvable.", ephemeral=True)
 
             overwrites = {
                 guild.default_role: PermissionOverwrite(connect=False),
                 role: PermissionOverwrite(
-                    view_channel=True,
-                    connect=True,
-                    speak=True,
-                    stream=True,
-                    use_voice_activation=True,
-                    use_soundboard=True,
-                    use_external_sounds=True
+                    view_channel=True, connect=True, speak=True, stream=True,
+                    use_voice_activation=True, use_soundboard=True, use_external_sounds=True
                 ),
                 bot_music_role: PermissionOverwrite(view_channel=True, connect=True),
                 guild.me: PermissionOverwrite(view_channel=True, connect=True, manage_channels=True)
             }
 
             vocal = await guild.create_voice_channel(
-                name=nom,
-                user_limit=slots,
-                overwrites=overwrites,
-                category=category
+                name=nom, user_limit=slots,
+                overwrites=overwrites, category=category
             )
             active_vocals[self.user_id] = vocal.id
 
             await interaction.response.send_message(
-                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@{role.id}>)", ephemeral=True
+                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@{role.id}>)",
+                ephemeral=True
             )
+
+            await refresh_vocal_button_once()
 
             async def auto_delete():
                 await asyncio.sleep(300)
@@ -105,22 +95,22 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
                         del active_vocals[self.user_id]
 
             asyncio.create_task(auto_delete())
+
         except Exception as e:
             await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
-
 
 class RoleChoiceView(ui.View):
     def __init__(self, user_id: int):
         super().__init__(timeout=60)
         self.user_id = user_id
 
-    @ui.button(label="👤 Membres", style=ButtonStyle.primary)
+    @ui.button(label="👤 Membres", style=ButtonStyle.primary, custom_id="vocal_membres")
     async def membre_btn(self, interaction: Interaction, _):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Ce menu ne t'est pas destiné.", ephemeral=True)
         await interaction.response.send_modal(VocalModal(ROLE_MEMBRES, self.user_id))
 
-    @ui.button(label="🛡️ Scrims", style=ButtonStyle.success)
+    @ui.button(label="🛡️ Scrims", style=ButtonStyle.success, custom_id="vocal_scrims")
     async def scrims_btn(self, interaction: Interaction, _):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Ce menu ne t'est pas destiné.", ephemeral=True)
@@ -130,7 +120,7 @@ class CreateVocalView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @ui.button(label="🎧 Créer un vocal", style=ButtonStyle.success)
+    @ui.button(label="🎧 Créer un vocal", style=ButtonStyle.success, custom_id="creer_vocal")
     async def create_btn(self, interaction: Interaction, _):
         await interaction.response.send_message(
             "Sélectionne le rôle autorisé à rejoindre ton salon :",
@@ -138,24 +128,13 @@ class CreateVocalView(ui.View):
             ephemeral=True
         )
 
-# =========================
-#       ANNONCES
-# =========================
-
-class AnnonceButtons(ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @ui.button(label="📢 Créer une annonce", style=ButtonStyle.primary)
-    async def create(self, interaction: Interaction, _):
-        await interaction.response.send_message("Système d’annonce à venir...", ephemeral=True)
-
-# =========================
-#     TÂCHES & ÉVÉNEMENTS
-# =========================
+# ============ REFRESH ============
 
 @tasks.loop(minutes=15)
 async def refresh_vocal_button():
+    await refresh_vocal_button_once()
+
+async def refresh_vocal_button_once():
     try:
         ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
         if not ch:
@@ -171,21 +150,15 @@ async def refresh_vocal_button():
     except Exception as e:
         print(f"❌ Erreur dans refresh_vocal_button : {e}")
 
+# ============ EVENTS ============
+
 @bot.event
 async def on_ready():
     print(f"✅ Connecté en tant que {bot.user}")
-    bot.add_view(CreateVocalView())       # Pour que les interactions persistent
-    bot.add_view(AnnonceButtons())        # Idem pour les boutons d'annonces
-    refresh_vocal_button.start()
-
     try:
-        await refresh_vocal_button()
-
-        annonce_ch = bot.get_channel(ANNONCE_BUTTON_CHANNEL)
-        async for msg in annonce_ch.history(limit=10):
-            if msg.author == bot.user:
-                await msg.delete()
-        await annonce_ch.send("📣 Gérer les annonces :", view=AnnonceButtons())
+        bot.add_view(CreateVocalView())  # Pour que les boutons persistent
+        await refresh_vocal_button_once()
+        refresh_vocal_button.start()
     except Exception as e:
         print(f"❌ Erreur dans on_ready : {e}")
 
@@ -199,21 +172,24 @@ async def on_message(message):
         if not (re.search(r'https?://', message.content) or message.attachments or message.embeds):
             try:
                 await message.delete()
-                await message.author.send("❌ Ton message a été supprimé (liens ou médias requis).")
+                await message.author.send(
+                    "👋 Ton message a été supprimé car ce salon est réservé aux BOT.\n\n"
+                    "💬 Salon discussion : <#1378524605165207562>\n"
+                    "🔎 Recherches : <#1378397438204968981>\n"
+                    "👉 Tape `/forcestart` si besoin."
+                )
             except:
                 pass
 
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
-            await message.channel.send(f"<@&{NOTIF_ROLE_ID}>")
+            await message.channel.send(f"<@{NOTIF_ROLE_ID}>")
             last_notification_time = now
 
     await bot.process_commands(message)
 
-# =========================
-#     COMMANDE DEBUG
-# =========================
+# ============ COMMANDE DEBUG ============
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -225,7 +201,8 @@ async def vocs(ctx):
     for v in vocaux:
         await ctx.send(f"🔊 **{v.name}** – `{len(v.members)} connecté(s)`")
 
-# === LANCEMENT ===
+# ============ START BOT ============
+
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 if TOKEN:
