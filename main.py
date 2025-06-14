@@ -99,20 +99,7 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
             active_vocals[self.user_id] = vocal.id
 
             await interaction.response.send_message(
-    f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@{role.id}>)", ephemeral=True
-)
-
-# Rafraîchir le bouton vocal pour éviter les erreurs d’interaction
-refresh_channel = interaction.guild.get_channel(CREATOR_BUTTON_CHANNEL)
-if refresh_channel:
-    try:
-        async for msg in refresh_channel.history(limit=10):
-            if msg.author == bot.user:
-                await msg.delete()
-        await refresh_channel.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
-    except Exception as e:
-        print(f"❌ Erreur de rafraîchissement du bouton vocal : {e}")
-, ephemeral=True
+                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@{role.id}>)", ephemeral=True
             )
 
             async def auto_delete():
@@ -207,7 +194,7 @@ class RoleMentionView(ui.View):
 
     @ui.button(label="@Notif", style=ButtonStyle.success)
     async def notif(self, interaction: Interaction, _):
-        await interaction.response.send_modal(AnnonceModal(f"@{NOTIF_ROLE_ID}", self.editing, self.message_id, self.existing_content))
+        await interaction.response.send_modal(AnnonceModal(f"@&{NOTIF_ROLE_ID}", self.editing, self.message_id, self.existing_content))
 
     @ui.button(label="Aucune mention", style=ButtonStyle.secondary)
     async def none(self, interaction: Interaction, _):
@@ -332,4 +319,3 @@ if TOKEN:
     bot.run(TOKEN)
 else:
     print("❌ Token introuvable.")
-
