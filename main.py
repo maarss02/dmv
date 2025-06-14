@@ -3,7 +3,7 @@ import re
 import time
 import asyncio
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import ui, Interaction, ButtonStyle, TextStyle, PermissionOverwrite
 from dotenv import load_dotenv
 
@@ -235,30 +235,24 @@ class AnnonceButtons(ui.View):
 #       EVENTS
 # =========================
 
-@bot.event
+
+@tasks.loop(minutes=15)
+async def refresh_vocal_button():
+    try:
+        ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
+        if not ch:
+            print("❌ Salon de création vocal introuvable.")
+            return
+        async for msg in ch.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+        await ch.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
+    except Exception as e:
+        print(f"❌ Erreur dans refresh_vocal_button : {e}")
+
 @bot.event
 async def on_ready():
     print(f"✅ Connecté en tant que {bot.user}")
-    refresh_vocal_button.start()
-    try:
-        # Bouton vocal
-        ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
-        if ch:
-            async for msg in ch.history(limit=10):
-                if msg.author == bot.user:
-                    await msg.delete()
-            await ch.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
-
-        # Boutons annonce
-        annonce_ch = bot.get_channel(ANNONCE_BUTTON_CHANNEL)
-        if annonce_ch:
-            async for msg in annonce_ch.history(limit=10):
-                if msg.author == bot.user:
-                    await msg.delete()
-            await annonce_ch.send("📣 Gérer les annonces :", view=AnnonceButtons())
-
-    except Exception as e:
-        print(f"❌ Erreur dans on_ready : {e}")
     try:
         # Bouton vocal
         ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
