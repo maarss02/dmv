@@ -314,3 +314,24 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Erreur dans on_ready : {e}")
 
+# =========================
+#      COMMANDE DEBUG
+# =========================
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def vocs(ctx):
+    category = ctx.guild.get_channel(VOCAL_CATEGORY_ID)
+    vocaux = [c for c in category.voice_channels if c.id != CREATOR_BUTTON_CHANNEL]
+    if not vocaux:
+        return await ctx.send("📭 Aucun salon vocal temporaire actif.")
+    for v in vocaux:
+        await ctx.send(f"🔊 **{v.name}** – `{len(v.members)} connecté(s)`")
+
+# === DÉMARRAGE ===
+load_dotenv()
+TOKEN = os.getenv("TOKEN")
+if TOKEN:
+    bot.run(TOKEN)
+else:
+    print("❌ Token introuvable.")
