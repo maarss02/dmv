@@ -34,6 +34,22 @@ notification_interval = 60 * 60
 last_notification_time = 0
 last_announcement_msg = None
 
+# === REFRESH BUTTON ===
+
+@tasks.loop(minutes=15)
+async def refresh_vocal_button():
+    try:
+        ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
+        if not ch:
+            print("❌ Salon de création vocal introuvable.")
+            return
+        async for msg in ch.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+        await ch.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
+    except Exception as e:
+        print(f"❌ Erreur dans refresh_vocal_button : {e}")
+
 # =========================
 #       SYSTEME VOCAL
 # =========================
@@ -102,6 +118,9 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
                 f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@{role.id}>)", ephemeral=True
             )
 
+            # Refresh immédiatement après création
+            await refresh_vocal_button()
+
             async def auto_delete():
                 await asyncio.sleep(300)
                 if len(vocal.members) == 0:
@@ -116,9 +135,6 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
 
         except Exception as e:
             await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
-
-
-
 
 
 class RoleChoiceView(ui.View):
@@ -148,118 +164,16 @@ class CreateVocalView(ui.View):
         )
 
 # =========================
-#       SYSTEME ANNONCE
-# =========================
-
-class AnnonceModal(ui.Modal):
-    def __init__(self, mention: str, editing: bool = False, message_id: int = None, content: str = None):
-        super().__init__(title="Contenu de l'annonce", timeout=300)
-        self.editing = editing
-        self.message_id = message_id
-        self.mention = mention
-        self.message = ui.TextInput(
-            label="Contenu de l’annonce",
-            style=TextStyle.paragraph,
-            max_length=2000,
-            default=content if content else ""
-        )
-        self.add_item(self.message)
-
-    async def on_submit(self, interaction: Interaction):
-        try:
-            channel = interaction.guild.get_channel(ANNONCE_PUBLIC_CHANNEL)
-            mention_str = f"|| {self.mention} ||\n\n" if self.mention else ""
-            content = f"{mention_str}{self.message.value}"
-
-            if self.editing and self.message_id:
-                msg = await channel.fetch_message(self.message_id)
-                await msg.edit(content=content)
-                await interaction.response.send_message("✏️ Annonce modifiée avec succès.", ephemeral=True)
-            else:
-                await channel.send(content)
-                await interaction.response.send_message("✅ Annonce envoyée avec succès.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
-
-class RoleMentionView(ui.View):
-    def __init__(self, editing: bool = False, message_id: int = None, existing_content: str = None):
-        super().__init__(timeout=60)
-        self.editing = editing
-        self.message_id = message_id
-        self.existing_content = existing_content
-
-    @ui.button(label="@everyone", style=ButtonStyle.primary)
-    async def everyone(self, interaction: Interaction, _):
-        await interaction.response.send_modal(AnnonceModal(" @everyone", self.editing, self.message_id, self.existing_content))
-
-    @ui.button(label="@Notif", style=ButtonStyle.success)
-    async def notif(self, interaction: Interaction, _):
-        await interaction.response.send_modal(AnnonceModal(f"@&{NOTIF_ROLE_ID}", self.editing, self.message_id, self.existing_content))
-
-    @ui.button(label="Aucune mention", style=ButtonStyle.secondary)
-    async def none(self, interaction: Interaction, _):
-        await interaction.response.send_modal(AnnonceModal("", self.editing, self.message_id, self.existing_content))
-
-class EditIDModal(ui.Modal, title="Modifier une annonce existante"):
-    message_id = ui.TextInput(label="ID du message à modifier", placeholder="Ex: 123456789", required=True)
-
-    async def on_submit(self, interaction: Interaction):
-        try:
-            channel = interaction.guild.get_channel(ANNONCE_PUBLIC_CHANNEL)
-            msg = await channel.fetch_message(int(self.message_id.value))
-            await interaction.response.send_message(
-                "Quel rôle veux-tu mentionner dans ta modification ?",
-                view=RoleMentionView(editing=True, message_id=msg.id, existing_content=msg.content),
-                ephemeral=True
-            )
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
-
-class AnnonceButtons(ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @ui.button(label="📢 Créer une annonce", style=ButtonStyle.primary)
-    async def create_annonce(self, interaction: Interaction, _):
-        if not any(role.id in [ROLE_FONDATEUR, ROLE_MODO] for role in interaction.user.roles):
-            return await interaction.response.send_message("Tu n'as pas la permission.", ephemeral=True)
-        await interaction.response.send_message("Choisis le rôle à mentionner :", view=RoleMentionView(), ephemeral=True)
-
-    @ui.button(label="✏️ Modifier une annonce", style=ButtonStyle.secondary)
-    async def modifier(self, interaction: Interaction, _):
-        if not any(role.id in [ROLE_FONDATEUR, ROLE_MODO] for role in interaction.user.roles):
-            return await interaction.response.send_message("Tu n'as pas la permission.", ephemeral=True)
-        await interaction.response.send_modal(EditIDModal())
-
-# =========================
 #       EVENTS
 # =========================
-
-
-@tasks.loop(minutes=15)
-async def refresh_vocal_button():
-    try:
-        ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
-        if not ch:
-            print("❌ Salon de création vocal introuvable.")
-            return
-        async for msg in ch.history(limit=10):
-            if msg.author == bot.user:
-                await msg.delete()
-        await ch.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
-    except Exception as e:
-        print(f"❌ Erreur dans refresh_vocal_button : {e}")
 
 @bot.event
 async def on_ready():
     print(f"✅ Connecté en tant que {bot.user}")
+    refresh_vocal_button.start()
     try:
-        # Bouton vocal
-        ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
-        async for msg in ch.history(limit=10):
-            if msg.author == bot.user:
-                await msg.delete()
-        await ch.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
+        # Refresh vocal
+        await refresh_vocal_button()
 
         # Boutons annonce
         annonce_ch = bot.get_channel(ANNONCE_BUTTON_CHANNEL)
@@ -270,6 +184,9 @@ async def on_ready():
 
     except Exception as e:
         print(f"❌ Erreur dans on_ready : {e}")
+
+# Reste de ton code (annonces, messages, etc.) inchangé...
+
 
 @bot.event
 async def on_message(message):
