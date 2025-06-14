@@ -207,7 +207,7 @@ class RoleMentionView(ui.View):
 
     @ui.button(label="@Notif", style=ButtonStyle.success)
     async def notif(self, interaction: Interaction, _):
-        await interaction.response.send_modal(AnnonceModal(f"@&{NOTIF_ROLE_ID}", self.editing, self.message_id, self.existing_content))
+        await interaction.response.send_modal(AnnonceModal(f"@{NOTIF_ROLE_ID}", self.editing, self.message_id, self.existing_content))
 
     @ui.button(label="Aucune mention", style=ButtonStyle.secondary)
     async def none(self, interaction: Interaction, _):
