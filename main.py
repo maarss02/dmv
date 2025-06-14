@@ -99,7 +99,7 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
             active_vocals[self.user_id] = vocal.id
 
             await interaction.response.send_message(
-    f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@&{role.id}>)", ephemeral=True
+    f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@{role.id}>)", ephemeral=True
 )
 
 # Rafraîchir le bouton vocal pour éviter les erreurs d’interaction
