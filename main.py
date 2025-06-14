@@ -78,7 +78,7 @@ class VocalModal(ui.Modal, title="Créer un salon vocal"):
             active_vocals[self.user_id] = vocal.id
 
             await interaction.response.send_message(
-                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@{role.id}>)",
+                f"✅ Salon vocal **{nom}** créé avec succès (limite {slots}, rôle <@&{role.id}>)",
                 ephemeral=True
             )
 
@@ -184,7 +184,7 @@ async def on_message(message):
     if message.channel.id == NOTIF_CHANNEL_ID:
         now = time.time()
         if now - last_notification_time >= notification_interval:
-            await message.channel.send(f"<@{NOTIF_ROLE_ID}>")
+            await message.channel.send(f"<@&{NOTIF_ROLE_ID}>")
             last_notification_time = now
 
     await bot.process_commands(message)
