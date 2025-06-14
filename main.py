@@ -235,6 +235,47 @@ class AnnonceButtons(ui.View):
 #       EVENTS
 # =========================
 
+@bot.event
+@bot.event
+async def on_ready():
+    print(f"✅ Connecté en tant que {bot.user}")
+    refresh_vocal_button.start()
+    try:
+        # Bouton vocal
+        ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
+        if ch:
+            async for msg in ch.history(limit=10):
+                if msg.author == bot.user:
+                    await msg.delete()
+            await ch.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
+
+        # Boutons annonce
+        annonce_ch = bot.get_channel(ANNONCE_BUTTON_CHANNEL)
+        if annonce_ch:
+            async for msg in annonce_ch.history(limit=10):
+                if msg.author == bot.user:
+                    await msg.delete()
+            await annonce_ch.send("📣 Gérer les annonces :", view=AnnonceButtons())
+
+    except Exception as e:
+        print(f"❌ Erreur dans on_ready : {e}")
+    try:
+        # Bouton vocal
+        ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
+        async for msg in ch.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+        await ch.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
+
+        # Boutons annonce
+        annonce_ch = bot.get_channel(ANNONCE_BUTTON_CHANNEL)
+        async for msg in annonce_ch.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+        await annonce_ch.send("📣 Gérer les annonces :", view=AnnonceButtons())
+
+    except Exception as e:
+        print(f"❌ Erreur dans on_ready : {e}")
 
 @bot.event
 async def on_message(message):
@@ -262,57 +303,6 @@ async def on_message(message):
             last_notification_time = now
 
     await bot.process_commands(message)
-
-# =========================
-#      COMMANDE DEBUG
-# =========================
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def vocs(ctx):
-    category = ctx.guild.get_channel(VOCAL_CATEGORY_ID)
-    vocaux = [c for c in category.voice_channels if c.id != CREATOR_BUTTON_CHANNEL]
-    if not vocaux:
-        return await ctx.send("📭 Aucun salon vocal temporaire actif.")
-    for v in vocaux:
-        await ctx.send(f"🔊 **{v.name}** – `{len(v.members)} connecté(s)`")
-
-# === DÉMARRAGE ===
-load_dotenv()
-TOKEN = os.getenv("TOKEN")
-if TOKEN:
-    bot.run(TOKEN)
-else:
-    print("❌ Token introuvable.")
-
-# === REFRESH BUTTON TASK ===
-@tasks.loop(minutes=15)
-async def refresh_vocal_button():
-    try:
-        ch = bot.get_channel(CREATOR_BUTTON_CHANNEL)
-        if not ch:
-            print("❌ Salon de création vocal introuvable.")
-            return
-        async for msg in ch.history(limit=10):
-            if msg.author == bot.user:
-                await msg.delete()
-        await ch.send("🎧 Clique ci-dessous pour créer ton salon vocal :", view=CreateVocalView())
-    except Exception as e:
-        print(f"❌ Erreur dans refresh_vocal_button : {e}")
-
-@bot.event
-async def on_ready():
-    print(f"✅ Connecté en tant que {bot.user}")
-    refresh_vocal_button.start()
-    try:
-        # Boutons annonce
-        annonce_ch = bot.get_channel(ANNONCE_BUTTON_CHANNEL)
-        async for msg in annonce_ch.history(limit=10):
-            if msg.author == bot.user:
-                await msg.delete()
-        await annonce_ch.send("📣 Gérer les annonces :", view=AnnonceButtons())
-    except Exception as e:
-        print(f"❌ Erreur dans on_ready : {e}")
 
 # =========================
 #      COMMANDE DEBUG
