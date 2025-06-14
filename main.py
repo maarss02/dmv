@@ -130,7 +130,7 @@ class CreateVocalView(ui.View):
 
 # ============ REFRESH ============
 
-@tasks.loop(minutes=15)
+@tasks.loop(minutes=60)
 async def refresh_vocal_button():
     await refresh_vocal_button_once()
 
